@@ -222,7 +222,6 @@ func iteratorFromPath(qs graph.QuadStore, root graph.Iterator, p *path.Path) (gr
 	}
 	if Optimize {
 		it, _ = it.Optimize()
-		it, _ = qs.OptimizeIterator(it)
 	}
 	return it, nil
 }

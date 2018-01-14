@@ -493,7 +493,7 @@ func TestSetIterator(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 	})
 	it.Reset()
 
-	and := iterator.NewAnd(qs,
+	and := iterator.NewAnd(
 		qs.QuadsAllIterator(),
 		it,
 	)
@@ -511,7 +511,7 @@ func TestSetIterator(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 		quad.Make("E", "follows", "F", nil),
 	})
 
-	and = iterator.NewAnd(qs,
+	and = iterator.NewAnd(
 		qs.QuadIterator(quad.Subject, qs.ValueOf(quad.String("B"))),
 		it,
 	)
@@ -540,7 +540,7 @@ func TestSetIterator(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 	it.Reset()
 
 	// Order is important
-	and = iterator.NewAnd(qs,
+	and = iterator.NewAnd(
 		qs.QuadIterator(quad.Subject, qs.ValueOf(quad.String("B"))),
 		it,
 	)
@@ -551,7 +551,7 @@ func TestSetIterator(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 	it.Reset()
 
 	// Order is important
-	and = iterator.NewAnd(qs,
+	and = iterator.NewAnd(
 		it,
 		qs.QuadIterator(quad.Subject, qs.ValueOf(quad.String("B"))),
 	)
@@ -801,13 +801,13 @@ func TestIteratorsAndNextResultOrderA(t testing.TB, gen testutil.DatabaseFunc, c
 
 	all := qs.NodesAllIterator()
 
-	innerAnd := iterator.NewAnd(qs,
+	innerAnd := iterator.NewAnd(
 		iterator.NewLinksTo(qs, fixed2, quad.Predicate),
 		iterator.NewLinksTo(qs, all, quad.Object),
 	)
 
 	hasa := iterator.NewHasA(qs, innerAnd, quad.Subject)
-	outerAnd := iterator.NewAnd(qs, fixed, hasa)
+	outerAnd := iterator.NewAnd(fixed, hasa)
 
 	require.True(t, outerAnd.Next(ctx), "Expected one matching subtree")
 

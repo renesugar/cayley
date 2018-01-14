@@ -186,21 +186,20 @@ func (it *Recursive) getBaseValue(val graph.Value) graph.Value {
 }
 
 func (it *Recursive) Contains(ctx context.Context, val graph.Value) bool {
-	graph.ContainsLogIn(it, val)
 	it.pathIndex = 0
 	key := graph.ToKey(val)
 	if at, ok := it.seen[key]; ok {
 		it.containsValue = it.getBaseValue(val)
 		it.result.depth = at.depth
 		it.result.val = val
-		return graph.ContainsLogOut(it, val, true)
+		return true
 	}
 	for it.Next(ctx) {
 		if graph.ToKey(it.Result()) == key {
-			return graph.ContainsLogOut(it, val, true)
+			return true
 		}
 	}
-	return graph.ContainsLogOut(it, val, false)
+	return false
 }
 
 func (it *Recursive) NextPath(ctx context.Context) bool {

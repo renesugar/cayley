@@ -45,4 +45,5 @@ Rough performance testing shows that, on 2014 consumer hardware and an average d
 
 ## Documentation
 
-* See the [docs folder](docs/) for v0.7 docs.
+* See the [docs folder](docs/) for v0.8 docs.
+* Documentation for v0.7 can be found [here](https://github.com/cayleygraph/cayley/tree/v0.7.2/docs).

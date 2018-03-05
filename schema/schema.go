@@ -846,7 +846,7 @@ func (c *Config) loadIteratorToDepth(ctx context.Context, qs graph.QuadStore, ds
 	if slice || chanl {
 		return nil
 	}
-	if list != nil && list.Type() != graph.All {
+	if list != nil { // FIXME: && list.Type() != graph.All {
 		// distinguish between missing object and type constraints
 		list.Reset()
 		and := iterator.NewAnd(list, qs.NodesAllIterator())

@@ -17,9 +17,9 @@ package kv
 import (
 	"context"
 
-	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/graph/proto"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
 )
 
@@ -35,7 +35,7 @@ type AllIterator struct {
 	cons    *constraint
 }
 
-var _ graph.Iterator = &AllIterator{}
+var _ iterator.Iterator = &AllIterator{}
 
 type constraint struct {
 	dir quad.Direction
@@ -63,7 +63,7 @@ func (it *AllIterator) Reset() {
 	it.id = 0
 }
 
-func (it *AllIterator) TagResults(dst map[string]graph.Value) {}
+func (it *AllIterator) TagResults(dst map[string]values.Value) {}
 
 func (it *AllIterator) Close() error {
 	return nil
@@ -73,7 +73,7 @@ func (it *AllIterator) Err() error {
 	return it.err
 }
 
-func (it *AllIterator) Result() graph.Value {
+func (it *AllIterator) Result() values.Value {
 	if it.id > uint64(it.horizon) {
 		return nil
 	}
@@ -87,7 +87,7 @@ func (it *AllIterator) Result() graph.Value {
 }
 
 // No subiterators.
-func (it *AllIterator) SubIterators() []graph.Iterator {
+func (it *AllIterator) SubIterators() []iterator.Iterator {
 	return nil
 }
 
@@ -146,7 +146,7 @@ func (it *AllIterator) NextPath(ctx context.Context) bool {
 	return false
 }
 
-func (it *AllIterator) Contains(ctx context.Context, v graph.Value) bool {
+func (it *AllIterator) Contains(ctx context.Context, v values.Value) bool {
 	if it.nodes {
 		x, ok := v.(Int64Value)
 		if !ok {
@@ -180,13 +180,13 @@ func (it *AllIterator) String() string {
 
 func (it *AllIterator) Sorted() bool { return false }
 
-func (it *AllIterator) Optimize() (graph.Iterator, bool) {
+func (it *AllIterator) Optimize() (iterator.Iterator, bool) {
 	return it, false
 }
 
-func (it *AllIterator) Stats() graph.IteratorStats {
+func (it *AllIterator) Stats() iterator.IteratorStats {
 	s, exact := it.Size()
-	return graph.IteratorStats{
+	return iterator.IteratorStats{
 		ContainsCost: 1,
 		NextCost:     2,
 		Size:         s,

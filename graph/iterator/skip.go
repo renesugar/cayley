@@ -4,20 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/values"
 )
 
-var _ graph.Iterator = &Skip{}
+var _ Iterator = &Skip{}
 
 // Skip iterator will skip certain number of values from primary iterator.
 type Skip struct {
 	uid       uint64
 	skip      int64
 	skipped   int64
-	primaryIt graph.Iterator
+	primaryIt Iterator
 }
 
-func NewSkip(primaryIt graph.Iterator, skip int64) *Skip {
+func NewSkip(primaryIt Iterator, skip int64) *Skip {
 	return &Skip{
 		uid:       NextUID(),
 		skip:      skip,
@@ -35,13 +35,13 @@ func (it *Skip) Reset() {
 	it.primaryIt.Reset()
 }
 
-func (it *Skip) TagResults(dst map[string]graph.Value) {
+func (it *Skip) TagResults(dst map[string]values.Value) {
 	it.primaryIt.TagResults(dst)
 }
 
 // SubIterators returns a slice of the sub iterators.
-func (it *Skip) SubIterators() []graph.Iterator {
-	return []graph.Iterator{it.primaryIt}
+func (it *Skip) SubIterators() []Generic {
+	return []Generic{it.primaryIt}
 }
 
 // Next advances the Skip iterator. It will skip all initial values
@@ -62,11 +62,11 @@ func (it *Skip) Err() error {
 	return it.primaryIt.Err()
 }
 
-func (it *Skip) Result() graph.Value {
+func (it *Skip) Result() values.Value {
 	return it.primaryIt.Result()
 }
 
-func (it *Skip) Contains(ctx context.Context, val graph.Value) bool {
+func (it *Skip) Contains(ctx context.Context, val values.Value) bool {
 	return it.primaryIt.Contains(ctx, val) // FIXME(dennwc): will not skip anything in this case
 }
 
@@ -87,16 +87,7 @@ func (it *Skip) Close() error {
 	return it.primaryIt.Close()
 }
 
-func (it *Skip) Optimize() (graph.Iterator, bool) {
-	optimizedPrimaryIt, optimized := it.primaryIt.Optimize()
-	if it.skip == 0 { // nothing to skip
-		return optimizedPrimaryIt, true
-	}
-	it.primaryIt = optimizedPrimaryIt
-	return it, optimized
-}
-
-func (it *Skip) Stats() graph.IteratorStats {
+func (it *Skip) Stats() IteratorStats {
 	primaryStats := it.primaryIt.Stats()
 	primaryStats.Size -= it.skip
 	if primaryStats.Size < 0 {

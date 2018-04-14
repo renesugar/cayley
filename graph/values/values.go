@@ -1,4 +1,4 @@
-package graph
+package values
 
 import (
 	"encoding/hex"
@@ -20,6 +20,8 @@ import (
 type Value interface {
 	Key() interface{}
 }
+
+type Any interface{}
 
 func HashOf(s quad.Value) (out ValueHash) {
 	if s == nil {
@@ -45,7 +47,7 @@ func (h ValueHash) String() string {
 	return hex.EncodeToString(h[:])
 }
 
-// PreFetchedValue is an optional interface for graph.Value to indicate that
+// PreFetchedValue is an optional interface for values.Value to indicate that
 // quadstore has already loaded a value into memory.
 type PreFetchedValue interface {
 	Value

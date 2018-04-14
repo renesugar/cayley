@@ -17,11 +17,11 @@ package memstore
 import (
 	"context"
 
-	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/values"
 )
 
-var _ graph.Iterator = (*AllIterator)(nil)
+var _ iterator.Iterator = (*AllIterator)(nil)
 
 type AllIterator struct {
 	uid uint64
@@ -86,7 +86,7 @@ func (it *AllIterator) Next(ctx context.Context) bool {
 	return false
 }
 
-func (it *AllIterator) Contains(ctx context.Context, v graph.Value) bool {
+func (it *AllIterator) Contains(ctx context.Context, v values.Value) bool {
 	it.cur = nil
 	if it.done {
 		return false
@@ -105,7 +105,7 @@ func (it *AllIterator) Contains(ctx context.Context, v graph.Value) bool {
 	it.cur = p
 	return true
 }
-func (it *AllIterator) Result() graph.Value {
+func (it *AllIterator) Result() values.Value {
 	if it.cur == nil {
 		return nil
 	}
@@ -122,10 +122,10 @@ func (it *AllIterator) Close() error {
 	return nil
 }
 
-func (it *AllIterator) TagResults(dst map[string]graph.Value) {}
+func (it *AllIterator) TagResults(dst map[string]values.Value) {}
 
-func (it *AllIterator) SubIterators() []graph.Iterator   { return nil }
-func (it *AllIterator) Optimize() (graph.Iterator, bool) { return it, false }
+func (it *AllIterator) SubIterators() []iterator.Iterator   { return nil }
+func (it *AllIterator) Optimize() (iterator.Iterator, bool) { return it, false }
 
 func (it *AllIterator) UID() uint64 {
 	return it.uid
@@ -139,8 +139,8 @@ func (it *AllIterator) Size() (int64, bool) {
 	// TODO: use maxid?
 	return int64(len(it.all)), true
 }
-func (it *AllIterator) Stats() graph.IteratorStats {
-	st := graph.IteratorStats{NextCost: 1, ContainsCost: 1}
+func (it *AllIterator) Stats() iterator.IteratorStats {
+	st := iterator.IteratorStats{NextCost: 1, ContainsCost: 1}
 	st.Size, st.ExactSize = it.Size()
 	return st
 }

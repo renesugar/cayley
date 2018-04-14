@@ -20,8 +20,9 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
-	"github.com/cayleygraph/cayley/graph/shape"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query/shape"
 )
 
 type applyMorphism func(shape.Shape, *pathContext) (shape.Shape, *pathContext)
@@ -96,12 +97,12 @@ func StartPath(qs graph.QuadStore, nodes ...quad.Value) *Path {
 }
 
 // StartPathNodes creates a new Path from a set of nodes and an underlying QuadStore.
-func StartPathNodes(qs graph.QuadStore, nodes ...graph.Value) *Path {
+func StartPathNodes(qs graph.QuadStore, nodes ...values.Value) *Path {
 	return newPath(qs, isNodeMorphism(nodes...))
 }
 
 // PathFromIterator creates a new Path from a set of nodes contained in iterator.
-func PathFromIterator(qs graph.QuadStore, it graph.Iterator) *Path {
+func PathFromIterator(qs graph.QuadStore, it iterator.Iterator) *Path {
 	return newPath(qs, iteratorMorphism(it))
 }
 
@@ -501,7 +502,7 @@ func (p *Path) Back(tag string) *Path {
 // call this with a full path (not a morphism), since a morphism does not have
 // the ability to fetch the underlying quads.  This function will panic if
 // called with a morphism (i.e. if p.IsMorphism() is true).
-func (p *Path) BuildIterator() graph.Iterator {
+func (p *Path) BuildIterator() iterator.Iterator {
 	if p.IsMorphism() {
 		panic("Building an iterator from a morphism. Bind a QuadStore with BuildIteratorOn(qs)")
 	}
@@ -509,7 +510,7 @@ func (p *Path) BuildIterator() graph.Iterator {
 }
 
 // BuildIteratorOn will return an iterator for this path on the given QuadStore.
-func (p *Path) BuildIteratorOn(qs graph.QuadStore) graph.Iterator {
+func (p *Path) BuildIteratorOn(qs graph.QuadStore) iterator.Iterator {
 	return shape.BuildIterator(qs, p.Shape())
 }
 
@@ -518,14 +519,14 @@ func (p *Path) BuildIteratorOn(qs graph.QuadStore) graph.Iterator {
 // return a new Iterator that yields the subset of values from the existing
 // iterator matched by the current Path.
 func (p *Path) Morphism() graph.ApplyMorphism {
-	return func(qs graph.QuadStore, it graph.Iterator) graph.Iterator {
+	return func(qs graph.QuadStore, it iterator.Iterator) iterator.Iterator {
 		return p.ShapeFrom(&iteratorShape{it: it}).BuildIterator(qs)
 	}
 }
 
 // MorphismFor is the same as Morphism but binds returned function to a specific QuadStore.
 func (p *Path) MorphismFor(qs graph.QuadStore) iterator.Morphism {
-	return func(it graph.Iterator) graph.Iterator {
+	return func(it iterator.Iterator) iterator.Iterator {
 		return p.ShapeFrom(&iteratorShape{it: it}).BuildIterator(qs)
 	}
 }

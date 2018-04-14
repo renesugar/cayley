@@ -12,6 +12,7 @@ import (
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/graph/log"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/internal/lru"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/quad/pquads"
@@ -73,7 +74,7 @@ func (v TimeVal) SQLValue() interface{} {
 }
 
 type NodeHash struct {
-	graph.ValueHash
+	values.ValueHash
 }
 
 func (h NodeHash) SQLValue() interface{} {
@@ -367,7 +368,7 @@ func (qs *QuadStore) ApplyDeltas(in []graph.Delta, opts graph.IgnoreOpts) error 
 			deleteQuad   *sql.Stmt
 			deleteTriple *sql.Stmt
 		)
-		fixNodes := make(map[graph.ValueHash]int)
+		fixNodes := make(map[values.ValueHash]int)
 		for _, d := range deltas.QuadDel {
 			dirs := make([]interface{}, 0, len(quad.Directions))
 			for _, h := range d.Quad.Dirs() {
@@ -449,7 +450,7 @@ func (qs *QuadStore) ApplyDeltas(in []graph.Delta, opts graph.IgnoreOpts) error 
 	return tx.Commit()
 }
 
-func (qs *QuadStore) Quad(val graph.Value) quad.Quad {
+func (qs *QuadStore) Quad(val values.Value) quad.Quad {
 	h := val.(QuadHashes)
 	return quad.Quad{
 		Subject:   qs.NameOf(h.Get(quad.Subject)),
@@ -459,7 +460,7 @@ func (qs *QuadStore) Quad(val graph.Value) quad.Quad {
 	}
 }
 
-func (qs *QuadStore) QuadIterator(d quad.Direction, val graph.Value) graph.Iterator {
+func (qs *QuadStore) QuadIterator(d quad.Direction, val values.Value) iterator.Iterator {
 	v, ok := val.(Value)
 	if !ok {
 		return iterator.NewNull()
@@ -469,15 +470,15 @@ func (qs *QuadStore) QuadIterator(d quad.Direction, val graph.Value) graph.Itera
 	return qs.NewIterator(sel)
 }
 
-func (qs *QuadStore) NodesAllIterator() graph.Iterator {
+func (qs *QuadStore) NodesAllIterator() iterator.Iterator {
 	return qs.NewIterator(AllNodes())
 }
 
-func (qs *QuadStore) QuadsAllIterator() graph.Iterator {
+func (qs *QuadStore) QuadsAllIterator() iterator.Iterator {
 	return qs.NewIterator(AllQuads(""))
 }
 
-func (qs *QuadStore) ValueOf(s quad.Value) graph.Value {
+func (qs *QuadStore) ValueOf(s quad.Value) values.Value {
 	return NodeHash(HashOf(s))
 }
 
@@ -518,7 +519,7 @@ func (nt NullTime) Value() (driver.Value, error) {
 	return nt.Time, nil
 }
 
-func (qs *QuadStore) NameOf(v graph.Value) quad.Value {
+func (qs *QuadStore) NameOf(v values.Value) quad.Value {
 	if v == nil {
 		if clog.V(2) {
 			clog.Infof("NameOf was nil")
@@ -533,7 +534,7 @@ func (qs *QuadStore) NameOf(v graph.Value) quad.Value {
 		return h.NameOf()
 	case NodeHash:
 		hash = h
-	case graph.ValueHash:
+	case values.ValueHash:
 		hash = NodeHash{h}
 	default:
 		panic(fmt.Errorf("unexpected token: %T", v))
@@ -658,7 +659,7 @@ func (qs *QuadStore) Close() error {
 	return qs.db.Close()
 }
 
-func (qs *QuadStore) QuadDirection(in graph.Value, d quad.Direction) graph.Value {
+func (qs *QuadStore) QuadDirection(in values.Value, d quad.Direction) values.Value {
 	return NodeHash{in.(QuadHashes).Get(d)}
 }
 

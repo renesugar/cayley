@@ -10,9 +10,11 @@ import (
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/graphtest/testutil"
 	"github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/iterator/giterator"
 	"github.com/cayleygraph/cayley/graph/path/pathtest"
-	"github.com/cayleygraph/cayley/graph/shape"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query/shape"
 	"github.com/cayleygraph/cayley/schema"
 	"github.com/cayleygraph/cayley/writer"
 	"github.com/stretchr/testify/assert"
@@ -112,7 +114,7 @@ func MakeQuadSet() []quad.Quad {
 	}
 }
 
-func IteratedQuads(t testing.TB, qs graph.QuadStore, it graph.Iterator) []quad.Quad {
+func IteratedQuads(t testing.TB, qs graph.QuadStore, it iterator.Iterator) []quad.Quad {
 	ctx := context.TODO()
 	var res quad.ByQuadString
 	for it.Next(ctx) {
@@ -126,7 +128,7 @@ func IteratedQuads(t testing.TB, qs graph.QuadStore, it graph.Iterator) []quad.Q
 	return res
 }
 
-func ExpectIteratedQuads(t testing.TB, qs graph.QuadStore, it graph.Iterator, exp []quad.Quad, sortQuads bool) {
+func ExpectIteratedQuads(t testing.TB, qs graph.QuadStore, it iterator.Iterator, exp []quad.Quad, sortQuads bool) {
 	got := IteratedQuads(t, qs, it)
 	if sortQuads {
 		sort.Sort(quad.ByQuadString(exp))
@@ -138,14 +140,14 @@ func ExpectIteratedQuads(t testing.TB, qs graph.QuadStore, it graph.Iterator, ex
 	require.Equal(t, exp, got)
 }
 
-func ExpectIteratedRawStrings(t testing.TB, qs graph.QuadStore, it graph.Iterator, exp []string) {
+func ExpectIteratedRawStrings(t testing.TB, qs graph.QuadStore, it iterator.Iterator, exp []string) {
 	//sort.Strings(exp)
 	got := IteratedStrings(t, qs, it)
 	//sort.Strings(got)
 	require.Equal(t, exp, got)
 }
 
-func ExpectIteratedValues(t testing.TB, qs graph.QuadStore, it graph.Iterator, exp []quad.Value, sortVals bool) {
+func ExpectIteratedValues(t testing.TB, qs graph.QuadStore, it iterator.Iterator, exp []quad.Value, sortVals bool) {
 	//sort.Strings(exp)
 	got := IteratedValues(t, qs, it)
 	//sort.Strings(got)
@@ -164,7 +166,7 @@ func ExpectIteratedValues(t testing.TB, qs graph.QuadStore, it graph.Iterator, e
 	}
 }
 
-func IteratedStrings(t testing.TB, qs graph.QuadStore, it graph.Iterator) []string {
+func IteratedStrings(t testing.TB, qs graph.QuadStore, it iterator.Iterator) []string {
 	ctx := context.TODO()
 	var res []string
 	for it.Next(ctx) {
@@ -175,7 +177,7 @@ func IteratedStrings(t testing.TB, qs graph.QuadStore, it graph.Iterator) []stri
 	return res
 }
 
-func IteratedValues(t testing.TB, qs graph.QuadStore, it graph.Iterator) []quad.Value {
+func IteratedValues(t testing.TB, qs graph.QuadStore, it iterator.Iterator) []quad.Value {
 	ctx := context.TODO()
 	var res []quad.Value
 	for it.Next(ctx) {
@@ -212,9 +214,9 @@ func TestLoadOneQuad(t testing.TB, gen testutil.DatabaseFunc, c *Config) {
 	if c.NoPrimitives {
 		exp = 1
 	}
-	require.Equal(t, exp, qs.Size(), "Unexpected quadstore size")
+	require.Equal(t, exp, qs.Stats().Links, "Unexpected quadstore size")
 
-	ExpectIteratedQuads(t, qs, qs.QuadsAllIterator(), []quad.Quad{q}, false)
+	ExpectIteratedQuads(t, qs, qs.AllQuads().BuildIterator(), []quad.Quad{q}, false)
 }
 
 func TestWriters(t *testing.T, gen testutil.DatabaseFunc, c *Config) {
@@ -237,7 +239,7 @@ func TestWriters(t *testing.T, gen testutil.DatabaseFunc, c *Config) {
 				require.NoError(t, err)
 
 				quads := func(arr ...quad.Quad) {
-					ExpectIteratedQuads(t, qs, qs.QuadsAllIterator(), arr, false)
+					ExpectIteratedQuads(t, qs, qs.AllQuads().BuildIterator(), arr, false)
 				}
 
 				deltaErr := func(exp, err error) {
@@ -314,11 +316,11 @@ func Test1K(t *testing.T, gen testutil.DatabaseFunc, c *Config) {
 	err = qw.Flush()
 	require.NoError(t, err)
 
-	ExpectIteratedQuads(t, qs, qs.QuadsAllIterator(), exp, true)
+	ExpectIteratedQuads(t, qs, qs.AllQuads().BuildIterator(), exp, true)
 }
 
 type ValueSizer interface {
-	SizeOf(graph.Value) int64
+	SizeOf(values.Value) int64
 }
 
 func TestSizes(t testing.TB, gen testutil.DatabaseFunc, conf *Config) {
@@ -333,7 +335,7 @@ func TestSizes(t testing.TB, gen testutil.DatabaseFunc, conf *Config) {
 	if conf.NoPrimitives {
 		exp = 11
 	}
-	require.Equal(t, exp, qs.Size(), "Unexpected quadstore size")
+	require.Equal(t, exp, qs.Stats().Links, "Unexpected quadstore size")
 
 	if qss, ok := qs.(ValueSizer); ok {
 		s := qss.SizeOf(qs.ValueOf(quad.String("B")))
@@ -359,9 +361,9 @@ func TestSizes(t testing.TB, gen testutil.DatabaseFunc, conf *Config) {
 		if conf.NoPrimitives {
 			exp = 10
 		}
-		require.Equal(t, exp, qs.Size(), "Unexpected quadstore size after RemoveQuad")
+		require.Equal(t, exp, qs.Stats().Links, "Unexpected quadstore size after RemoveQuad")
 	} else {
-		require.Equal(t, int64(11), qs.Size(), "Unexpected quadstore size")
+		require.Equal(t, int64(11), qs.Stats().Links, "Unexpected quadstore size")
 	}
 
 	if qss, ok := qs.(ValueSizer); ok {
@@ -377,9 +379,9 @@ func TestIterator(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 
 	testutil.MakeWriter(t, qs, opts, MakeQuadSet()...)
 
-	var it graph.Iterator
+	var it iterator.Iterator
 
-	it = qs.NodesAllIterator()
+	it = qs.AllNodes().BuildIterator()
 	require.NotNil(t, it)
 
 	size, _ := it.Size()
@@ -429,7 +431,7 @@ func TestIterator(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 	*/
 	it.Reset()
 
-	it = qs.QuadsAllIterator()
+	it = qs.AllQuads().BuildIterator()
 	optIt, changed = it.Optimize()
 	require.True(t, !changed && optIt == it, "Optimize unexpectedly changed iterator: %v, %T", changed, optIt)
 
@@ -455,8 +457,8 @@ func TestHasA(t testing.TB, gen testutil.DatabaseFunc, conf *Config) {
 
 	testutil.MakeWriter(t, qs, opts, MakeQuadSet()...)
 
-	var it graph.Iterator = iterator.NewHasA(qs,
-		iterator.NewLinksTo(qs, qs.NodesAllIterator(), quad.Predicate),
+	var it iterator.Iterator = giterator.NewHasA(qs,
+		giterator.NewLinksTo(qs, qs.AllNodes().BuildIterator(), quad.Predicate),
 		quad.Predicate)
 	defer it.Close()
 
@@ -478,12 +480,12 @@ func TestSetIterator(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 
 	testutil.MakeWriter(t, qs, opts, MakeQuadSet()...)
 
-	expectIteratedQuads := func(it graph.Iterator, exp []quad.Quad) {
+	expectIteratedQuads := func(it iterator.Iterator, exp []quad.Quad) {
 		ExpectIteratedQuads(t, qs, it, exp, false)
 	}
 
 	// Subject iterator.
-	it := qs.QuadIterator(quad.Subject, qs.ValueOf(quad.String("C")))
+	it := qs.QuadIterator(quad.Subject, qs.ValueOf(quad.String("C"))).BuildIterator()
 
 	expectIteratedQuads(it, []quad.Quad{
 		quad.Make("C", "follows", "B", nil),
@@ -492,7 +494,7 @@ func TestSetIterator(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 	it.Reset()
 
 	and := iterator.NewAnd(
-		qs.QuadsAllIterator(),
+		qs.AllQuads().BuildIterator(),
 		it,
 	)
 
@@ -502,7 +504,7 @@ func TestSetIterator(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 	})
 
 	// Object iterator.
-	it = qs.QuadIterator(quad.Object, qs.ValueOf(quad.String("F")))
+	it = qs.QuadIterator(quad.Object, qs.ValueOf(quad.String("F"))).BuildIterator()
 
 	expectIteratedQuads(it, []quad.Quad{
 		quad.Make("B", "follows", "F", nil),
@@ -510,7 +512,7 @@ func TestSetIterator(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 	})
 
 	and = iterator.NewAnd(
-		qs.QuadIterator(quad.Subject, qs.ValueOf(quad.String("B"))),
+		qs.QuadIterator(quad.Subject, qs.ValueOf(quad.String("B"))).BuildIterator(),
 		it,
 	)
 
@@ -519,7 +521,7 @@ func TestSetIterator(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 	})
 
 	// Predicate iterator.
-	it = qs.QuadIterator(quad.Predicate, qs.ValueOf(quad.String("status")))
+	it = qs.QuadIterator(quad.Predicate, qs.ValueOf(quad.String("status"))).BuildIterator()
 
 	expectIteratedQuads(it, []quad.Quad{
 		quad.Make("B", "status", "cool", "status_graph"),
@@ -528,7 +530,7 @@ func TestSetIterator(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 	})
 
 	// Label iterator.
-	it = qs.QuadIterator(quad.Label, qs.ValueOf(quad.String("status_graph")))
+	it = qs.QuadIterator(quad.Label, qs.ValueOf(quad.String("status_graph"))).BuildIterator()
 
 	expectIteratedQuads(it, []quad.Quad{
 		quad.Make("B", "status", "cool", "status_graph"),
@@ -539,7 +541,7 @@ func TestSetIterator(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 
 	// Order is important
 	and = iterator.NewAnd(
-		qs.QuadIterator(quad.Subject, qs.ValueOf(quad.String("B"))),
+		qs.QuadIterator(quad.Subject, qs.ValueOf(quad.String("B"))).BuildIterator(),
 		it,
 	)
 
@@ -551,7 +553,7 @@ func TestSetIterator(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 	// Order is important
 	and = iterator.NewAnd(
 		it,
-		qs.QuadIterator(quad.Subject, qs.ValueOf(quad.String("B"))),
+		qs.QuadIterator(quad.Subject, qs.ValueOf(quad.String("B"))).BuildIterator(),
 	)
 
 	expectIteratedQuads(and, []quad.Quad{
@@ -568,7 +570,7 @@ func TestDeleteQuad(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 	vn := qs.ValueOf(quad.Raw("E"))
 	require.NotNil(t, vn)
 
-	it := qs.QuadIterator(quad.Subject, vn)
+	it := qs.QuadIterator(quad.Subject, vn).BuildIterator()
 	ExpectIteratedQuads(t, qs, it, []quad.Quad{
 		quad.Make("E", "follows", "F", nil),
 	}, false)
@@ -577,11 +579,11 @@ func TestDeleteQuad(t testing.TB, gen testutil.DatabaseFunc, _ *Config) {
 	err := w.RemoveQuad(quad.Make("E", "follows", "F", nil))
 	require.NoError(t, err)
 
-	it = qs.QuadIterator(quad.Subject, qs.ValueOf(quad.Raw("E")))
+	it = qs.QuadIterator(quad.Subject, qs.ValueOf(quad.Raw("E"))).BuildIterator()
 	ExpectIteratedQuads(t, qs, it, nil, false)
 	it.Close()
 
-	it = qs.QuadsAllIterator()
+	it = qs.AllQuads().BuildIterator()
 	ExpectIteratedQuads(t, qs, it, []quad.Quad{
 		quad.Make("A", "follows", "B", nil),
 		quad.Make("C", "follows", "B", nil),
@@ -607,7 +609,7 @@ func TestDeletedFromIterator(t testing.TB, gen testutil.DatabaseFunc, conf *Conf
 	w := testutil.MakeWriter(t, qs, opts, MakeQuadSet()...)
 
 	// Subject iterator.
-	it := qs.QuadIterator(quad.Subject, qs.ValueOf(quad.Raw("E")))
+	it := qs.QuadIterator(quad.Subject, qs.ValueOf(quad.Raw("E"))).BuildIterator()
 
 	ExpectIteratedQuads(t, qs, it, []quad.Quad{
 		quad.Make("E", "follows", "F", nil),
@@ -685,7 +687,7 @@ func TestLoadTypedQuads(t testing.TB, gen testutil.DatabaseFunc, conf *Config) {
 	if conf.NoPrimitives {
 		exp = 7
 	}
-	require.Equal(t, exp, qs.Size(), "Unexpected quadstore size")
+	require.Equal(t, exp, qs.Stats().Links, "Unexpected quadstore size")
 }
 
 // TODO(dennwc): add tests to verify that QS behaves in a right way with IgnoreOptions,

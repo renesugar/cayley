@@ -24,6 +24,7 @@ import (
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/graphtest"
 	"github.com/cayleygraph/cayley/graph/graphtest/testutil"
+	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/stretchr/testify/require"
 
@@ -123,7 +124,7 @@ func TestIterators(t *testing.T) {
 	require.True(t, it.Contains(token), "Contains failed")
 
 	// Test cloning an iterator
-	var it2 graph.Iterator
+	var it2 iterator.Iterator
 	it2 = it.Clone()
 	x := graph.DescribeIterator(it2)
 	y := graph.DescribeIterator(it)

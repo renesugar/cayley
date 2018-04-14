@@ -19,12 +19,12 @@ import (
 	"fmt"
 
 	"github.com/cayleygraph/cayley/clog"
-	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
 )
 
-var _ graph.Iterator = (*Iterator)(nil)
+var _ iterator.Iterator = (*Iterator)(nil)
 
 type Linkage struct {
 	Dir quad.Direction
@@ -40,7 +40,7 @@ type Iterator struct {
 	links      []Linkage // used in Contains
 
 	iter   DocIterator
-	result graph.Value
+	result values.Value
 	size   int64
 	err    error
 }
@@ -100,7 +100,7 @@ func (it *Iterator) Close() error {
 	return nil
 }
 
-func (it *Iterator) TagResults(dst map[string]graph.Value) {}
+func (it *Iterator) TagResults(dst map[string]values.Value) {}
 
 func (it *Iterator) Next(ctx context.Context) bool {
 	if it.iter == nil {
@@ -140,7 +140,7 @@ func (it *Iterator) Err() error {
 	return it.err
 }
 
-func (it *Iterator) Result() graph.Value {
+func (it *Iterator) Result() values.Value {
 	return it.result
 }
 
@@ -148,11 +148,11 @@ func (it *Iterator) NextPath(ctx context.Context) bool {
 	return false
 }
 
-func (it *Iterator) SubIterators() []graph.Iterator {
+func (it *Iterator) SubIterators() []iterator.Iterator {
 	return nil
 }
 
-func (it *Iterator) Contains(ctx context.Context, v graph.Value) bool {
+func (it *Iterator) Contains(ctx context.Context, v values.Value) bool {
 	if len(it.links) != 0 {
 		qh := v.(QuadHash)
 		for _, l := range it.links {
@@ -198,16 +198,16 @@ func (it *Iterator) Size() (int64, bool) {
 	return it.size, true
 }
 
-func (it *Iterator) Sorted() bool                     { return true }
-func (it *Iterator) Optimize() (graph.Iterator, bool) { return it, false }
+func (it *Iterator) Sorted() bool                        { return true }
+func (it *Iterator) Optimize() (iterator.Iterator, bool) { return it, false }
 
 func (it *Iterator) String() string {
 	return fmt.Sprintf("NoSQL(%v)", it.collection)
 }
 
-func (it *Iterator) Stats() graph.IteratorStats {
+func (it *Iterator) Stats() iterator.IteratorStats {
 	size, exact := it.Size()
-	return graph.IteratorStats{
+	return iterator.IteratorStats{
 		ContainsCost: 1,
 		NextCost:     5,
 		Size:         size,

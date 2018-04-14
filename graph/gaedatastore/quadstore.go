@@ -29,6 +29,8 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/http"
+	"github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
 )
 
@@ -397,24 +399,24 @@ func (qs *QuadStore) updateLog(in []graph.Delta) ([]int64, error) {
 	return out, nil
 }
 
-func (qs *QuadStore) QuadIterator(dir quad.Direction, v graph.Value) graph.Iterator {
+func (qs *QuadStore) QuadIterator(dir quad.Direction, v values.Value) iterator.Iterator {
 	return NewIterator(qs, quadKind, dir, v)
 }
 
-func (qs *QuadStore) NodesAllIterator() graph.Iterator {
+func (qs *QuadStore) NodesAllIterator() iterator.Iterator {
 	return NewAllIterator(qs, nodeKind)
 }
 
-func (qs *QuadStore) QuadsAllIterator() graph.Iterator {
+func (qs *QuadStore) QuadsAllIterator() iterator.Iterator {
 	return NewAllIterator(qs, quadKind)
 }
 
-func (qs *QuadStore) ValueOf(s quad.Value) graph.Value {
+func (qs *QuadStore) ValueOf(s quad.Value) values.Value {
 	id := hashOf(s)
 	return &Token{Kind: nodeKind, Hash: id}
 }
 
-func (qs *QuadStore) NameOf(val graph.Value) quad.Value {
+func (qs *QuadStore) NameOf(val values.Value) quad.Value {
 	if qs.context == nil {
 		clog.Errorf("Error in NameOf, context is nil, graph not correctly initialised")
 		return nil
@@ -440,7 +442,7 @@ func (qs *QuadStore) NameOf(val graph.Value) quad.Value {
 	return quad.Raw(node.Name)
 }
 
-func (qs *QuadStore) Quad(val graph.Value) quad.Quad {
+func (qs *QuadStore) Quad(val values.Value) quad.Quad {
 	if qs.context == nil {
 		clog.Errorf("Error fetching quad, context is nil, graph not correctly initialised")
 		return quad.Quad{}
@@ -508,7 +510,7 @@ func (qs *QuadStore) Close() error {
 	return nil
 }
 
-func (qs *QuadStore) QuadDirection(val graph.Value, dir quad.Direction) graph.Value {
+func (qs *QuadStore) QuadDirection(val values.Value, dir quad.Direction) values.Value {
 	t, ok := val.(*Token)
 	if !ok {
 		clog.Errorf("Token not valid")

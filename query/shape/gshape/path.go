@@ -1,11 +1,9 @@
-package shape
+package gshape
 
 import (
-	"context"
-
-	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/quad"
+	. "github.com/cayleygraph/cayley/query/shape"
 )
 
 func IntersectShapes(s1, s2 Shape) Shape {
@@ -228,9 +226,4 @@ func AddFilters(nodes Shape, filters ...ValueFilter) Shape {
 
 func Compare(nodes Shape, op iterator.Operator, v quad.Value) Shape {
 	return AddFilters(nodes, Comparison{Op: op, Val: v})
-}
-
-func Iterate(ctx context.Context, qs graph.QuadStore, s Shape) *graph.IterateChain {
-	it := BuildIterator(qs, s)
-	return graph.Iterate(ctx, it).On(qs)
 }

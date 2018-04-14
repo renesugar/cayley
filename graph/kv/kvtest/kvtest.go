@@ -10,6 +10,7 @@ import (
 	"github.com/cayleygraph/cayley/graph/graphtest/testutil"
 	"github.com/cayleygraph/cayley/graph/kv"
 	"github.com/cayleygraph/cayley/graph/shape"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/stretchr/testify/require"
 )
@@ -96,10 +97,10 @@ func testOptimize(t *testing.T, gen DatabaseFunc, _ *Config) {
 	}
 
 	oldIt.Next(ctx)
-	oldResults := make(map[string]graph.Value)
+	oldResults := make(map[string]values.Value)
 	oldIt.TagResults(oldResults)
 	newIt.Next(ctx)
-	newResults := make(map[string]graph.Value)
+	newResults := make(map[string]values.Value)
 	newIt.TagResults(newResults)
 	if !reflect.DeepEqual(newResults, oldResults) {
 		t.Errorf("Discordant tag results, new:%v old:%v", newResults, oldResults)

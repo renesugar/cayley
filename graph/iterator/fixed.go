@@ -17,32 +17,32 @@ package iterator
 // Defines one of the base iterators, the Fixed iterator. A fixed iterator is quite simple; it
 // contains an explicit fixed array of values.
 //
-// A fixed iterator requires an Equality function to be passed to it, by reason that graph.Value, the
+// A fixed iterator requires an Equality function to be passed to it, by reason that values.Value, the
 // opaque Quad store value, may not answer to ==.
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/values"
 )
 
-var _ graph.Iterator = &Fixed{}
+var _ Iterator = &Fixed{}
 
 // A Fixed iterator consists of it's values, an index (where it is in the process of Next()ing) and
 // an equality function.
 type Fixed struct {
 	uid       uint64
-	values    []graph.Value
+	values    []values.Value
 	lastIndex int
-	result    graph.Value
+	result    values.Value
 }
 
 // Creates a new Fixed iterator with a custom comparator.
-func NewFixed(vals ...graph.Value) *Fixed {
+func NewFixed(vals ...values.Value) *Fixed {
 	it := &Fixed{
 		uid:    NextUID(),
-		values: make([]graph.Value, 0, 20),
+		values: make([]values.Value, 0, 20),
 	}
 	for _, v := range vals {
 		it.Add(v)
@@ -62,16 +62,16 @@ func (it *Fixed) Close() error {
 	return nil
 }
 
-func (it *Fixed) TagResults(dst map[string]graph.Value) {}
+func (it *Fixed) TagResults(dst map[string]values.Value) {}
 
 // Add a value to the iterator. The array now contains this value.
 // TODO(barakmich): This ought to be a set someday, disallowing repeated values.
-func (it *Fixed) Add(v graph.Value) {
+func (it *Fixed) Add(v values.Value) {
 	it.values = append(it.values, v)
 }
 
 // Values returns a list of values stored in iterator. Slice should not be modified.
-func (it *Fixed) Values() []graph.Value {
+func (it *Fixed) Values() []values.Value {
 	return it.values
 }
 
@@ -80,13 +80,13 @@ func (it *Fixed) String() string {
 }
 
 // Check if the passed value is equal to one of the values stored in the iterator.
-func (it *Fixed) Contains(ctx context.Context, v graph.Value) bool {
+func (it *Fixed) Contains(ctx context.Context, v values.Value) bool {
 	// Could be optimized by keeping it sorted or using a better datastructure.
 	// However, for fixed iterators, which are by definition kind of tiny, this
 	// isn't a big issue.
-	vk := graph.ToKey(v)
+	vk := values.ToKey(v)
 	for _, x := range it.values {
-		if graph.ToKey(x) == vk {
+		if values.ToKey(x) == vk {
 			it.result = x
 			return true
 		}
@@ -109,7 +109,7 @@ func (it *Fixed) Err() error {
 	return nil
 }
 
-func (it *Fixed) Result() graph.Value {
+func (it *Fixed) Result() values.Value {
 	return it.result
 }
 
@@ -118,14 +118,14 @@ func (it *Fixed) NextPath(ctx context.Context) bool {
 }
 
 // No sub-iterators.
-func (it *Fixed) SubIterators() []graph.Iterator {
+func (it *Fixed) SubIterators() []Generic {
 	return nil
 }
 
 // Optimize() for a Fixed iterator is simple. Returns a Null iterator if it's empty
 // (so that other iterators upstream can treat this as null) or there is no
 // optimization.
-func (it *Fixed) Optimize() (graph.Iterator, bool) {
+func (it *Fixed) Optimize() (Iterator, bool) {
 	if len(it.values) == 1 && it.values[0] == nil {
 		return NewNull(), true
 	}
@@ -140,9 +140,9 @@ func (it *Fixed) Size() (int64, bool) {
 
 // As we right now have to scan the entire list, Next and Contains are linear with the
 // size. However, a better data structure could remove these limits.
-func (it *Fixed) Stats() graph.IteratorStats {
+func (it *Fixed) Stats() IteratorStats {
 	s, exact := it.Size()
-	return graph.IteratorStats{
+	return IteratorStats{
 		ContainsCost: s,
 		NextCost:     s,
 		Size:         s,

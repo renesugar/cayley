@@ -23,8 +23,10 @@ import (
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/graphtest"
 	"github.com/cayleygraph/cayley/graph/iterator"
-	"github.com/cayleygraph/cayley/graph/shape"
+	"github.com/cayleygraph/cayley/graph/iterator/giterator"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query"
+	"github.com/cayleygraph/cayley/query/shape/gshape"
 	"github.com/cayleygraph/cayley/writer"
 	"github.com/stretchr/testify/require"
 )
@@ -121,11 +123,11 @@ func TestIteratorsAndNextResultOrderA(t *testing.T) {
 	all := qs.NodesAllIterator()
 
 	innerAnd := iterator.NewAnd(
-		iterator.NewLinksTo(qs, fixed2, quad.Predicate),
-		iterator.NewLinksTo(qs, all, quad.Object),
+		giterator.NewLinksTo(qs, fixed2, quad.Predicate),
+		giterator.NewLinksTo(qs, all, quad.Object),
 	)
 
-	hasa := iterator.NewHasA(qs, innerAnd, quad.Subject)
+	hasa := giterator.NewHasA(qs, innerAnd, quad.Subject)
 	outerAnd := iterator.NewAnd(fixed, hasa)
 
 	if !outerAnd.Next(ctx) {
@@ -160,8 +162,8 @@ func TestIteratorsAndNextResultOrderA(t *testing.T) {
 func TestLinksToOptimization(t *testing.T) {
 	qs, _, _ := makeTestStore(simpleGraph)
 
-	lto := shape.BuildIterator(qs, shape.Quads{
-		{Dir: quad.Object, Values: shape.Lookup{quad.Raw("cool")}},
+	lto := query.BuildIterator(qs, gshape.Quads{
+		{Dir: quad.Object, Values: gshape.Lookup{quad.Raw("cool")}},
 	})
 
 	newIt, changed := lto.Optimize()
@@ -195,11 +197,11 @@ func TestRemoveQuad(t *testing.T) {
 	fixed2.Add(qs.ValueOf(quad.Raw("follows")))
 
 	innerAnd := iterator.NewAnd(
-		iterator.NewLinksTo(qs, fixed, quad.Subject),
-		iterator.NewLinksTo(qs, fixed2, quad.Predicate),
+		giterator.NewLinksTo(qs, fixed, quad.Subject),
+		giterator.NewLinksTo(qs, fixed2, quad.Predicate),
 	)
 
-	hasa := iterator.NewHasA(qs, innerAnd, quad.Object)
+	hasa := giterator.NewHasA(qs, innerAnd, quad.Object)
 
 	newIt, _ := hasa.Optimize()
 	if newIt.Next(ctx) {

@@ -7,8 +7,8 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
-	"github.com/cayleygraph/cayley/graph/shape"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query/shape"
 )
 
 var _ shape.Optimizer = (*QuadStore)(nil)
@@ -36,7 +36,7 @@ type Shape struct {
 	Limit      int64         // limits a number of documents
 }
 
-func (s Shape) BuildIterator(qs graph.QuadStore) graph.Iterator {
+func (s Shape) BuildIterator(qs graph.QuadStore) iterator.Iterator {
 	db, ok := qs.(*QuadStore)
 	if !ok {
 		return iterator.NewError(fmt.Errorf("not a nosql database: %T", qs))
@@ -54,7 +54,7 @@ type Quads struct {
 	Limit int64     // limits a number of documents
 }
 
-func (s Quads) BuildIterator(qs graph.QuadStore) graph.Iterator {
+func (s Quads) BuildIterator(qs graph.QuadStore) iterator.Iterator {
 	db, ok := qs.(*QuadStore)
 	if !ok {
 		return iterator.NewError(fmt.Errorf("not a nosql database: %T", qs))

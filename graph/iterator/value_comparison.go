@@ -30,7 +30,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/quad"
 )
 
@@ -59,8 +58,8 @@ const (
 	// Why no Equals? Because that's usually an AndIterator.
 )
 
-func NewComparison(sub graph.Iterator, op Operator, val quad.Value, qs graph.Namer) graph.Iterator {
-	return NewValueFilter(qs, sub, func(qval quad.Value) (bool, error) {
+func NewComparison(sub VIterator, op Operator, val quad.Value) VIterator {
+	return NewValueFilter(sub, func(qval quad.Value) (bool, error) {
 		switch cVal := val.(type) {
 		case quad.Int:
 			if cVal2, ok := qval.(quad.Int); ok {

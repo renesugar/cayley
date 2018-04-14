@@ -3,22 +3,22 @@ package iterator
 import (
 	"context"
 
-	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/values"
 )
 
-var _ graph.Iterator = &Unique{}
+var _ Iterator = &Unique{}
 
 // Unique iterator removes duplicate values from it's subiterator.
 type Unique struct {
 	uid      uint64
-	subIt    graph.Iterator
-	result   graph.Value
-	runstats graph.IteratorStats
+	subIt    Iterator
+	result   values.Value
+	runstats IteratorStats
 	err      error
 	seen     map[interface{}]bool
 }
 
-func NewUnique(subIt graph.Iterator) *Unique {
+func NewUnique(subIt Iterator) *Unique {
 	return &Unique{
 		uid:   NextUID(),
 		subIt: subIt,
@@ -37,7 +37,7 @@ func (it *Unique) Reset() {
 	it.seen = make(map[interface{}]bool)
 }
 
-func (it *Unique) TagResults(dst map[string]graph.Value) {
+func (it *Unique) TagResults(dst map[string]values.Value) {
 	if it.subIt != nil {
 		it.subIt.TagResults(dst)
 	}
@@ -45,8 +45,8 @@ func (it *Unique) TagResults(dst map[string]graph.Value) {
 
 // SubIterators returns a slice of the sub iterators. The first iterator is the
 // primary iterator, for which the complement is generated.
-func (it *Unique) SubIterators() []graph.Iterator {
-	return []graph.Iterator{it.subIt}
+func (it *Unique) SubIterators() []Generic {
+	return []Generic{it.subIt}
 }
 
 // Next advances the subiterator, continuing until it returns a value which it
@@ -56,7 +56,7 @@ func (it *Unique) Next(ctx context.Context) bool {
 
 	for it.subIt.Next(ctx) {
 		curr := it.subIt.Result()
-		key := graph.ToKey(curr)
+		key := values.ToKey(curr)
 		if ok := it.seen[key]; !ok {
 			it.result = curr
 			it.seen[key] = true
@@ -71,13 +71,13 @@ func (it *Unique) Err() error {
 	return it.err
 }
 
-func (it *Unique) Result() graph.Value {
+func (it *Unique) Result() values.Value {
 	return it.result
 }
 
 // Contains checks whether the passed value is part of the primary iterator,
 // which is irrelevant for uniqueness.
-func (it *Unique) Contains(ctx context.Context, val graph.Value) bool {
+func (it *Unique) Contains(ctx context.Context, val values.Value) bool {
 	it.runstats.Contains += 1
 	return it.subIt.Contains(ctx, val)
 }
@@ -95,19 +95,11 @@ func (it *Unique) Close() error {
 	return it.subIt.Close()
 }
 
-func (it *Unique) Optimize() (graph.Iterator, bool) {
-	newIt, optimized := it.subIt.Optimize()
-	if optimized {
-		it.subIt = newIt
-	}
-	return it, false
-}
-
 const uniquenessFactor = 2
 
-func (it *Unique) Stats() graph.IteratorStats {
+func (it *Unique) Stats() IteratorStats {
 	subStats := it.subIt.Stats()
-	return graph.IteratorStats{
+	return IteratorStats{
 		NextCost:     subStats.NextCost * uniquenessFactor,
 		ContainsCost: subStats.ContainsCost,
 		Size:         subStats.Size / uniquenessFactor,

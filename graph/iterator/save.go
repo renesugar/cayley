@@ -4,23 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/values"
 )
 
 var (
-	_ graph.Iterator = (*Save)(nil)
-	_ graph.Tagger   = (*Save)(nil)
+	_ Iterator = (*Save)(nil)
+	_ Tagger   = (*Save)(nil)
 )
 
-func Tag(it graph.Iterator, tag string) graph.Iterator {
-	if s, ok := it.(graph.Tagger); ok {
+func Tag(it Iterator, tag string) Iterator {
+	if s, ok := it.(Tagger); ok {
 		s.AddTags(tag)
 		return s
 	}
 	return NewSave(it, tag)
 }
 
-func NewSave(on graph.Iterator, tags ...string) *Save {
+func NewSave(on Iterator, tags ...string) *Save {
 	s := &Save{uid: NextUID(), it: on}
 	s.AddTags(tags...)
 	return s
@@ -29,8 +29,8 @@ func NewSave(on graph.Iterator, tags ...string) *Save {
 type Save struct {
 	uid       uint64
 	tags      []string
-	fixedTags map[string]graph.Value
-	it        graph.Iterator
+	fixedTags map[string]values.Value
+	it        Iterator
 }
 
 func (it *Save) String() string {
@@ -42,9 +42,9 @@ func (it *Save) AddTags(tag ...string) {
 	it.tags = append(it.tags, tag...)
 }
 
-func (it *Save) AddFixedTag(tag string, value graph.Value) {
+func (it *Save) AddFixedTag(tag string, value values.Value) {
 	if it.fixedTags == nil {
-		it.fixedTags = make(map[string]graph.Value)
+		it.fixedTags = make(map[string]values.Value)
 	}
 	it.fixedTags[tag] = value
 }
@@ -55,11 +55,11 @@ func (it *Save) Tags() []string {
 }
 
 // Fixed returns the fixed tags held in the tagger. The returned value must not be mutated.
-func (it *Save) FixedTags() map[string]graph.Value {
+func (it *Save) FixedTags() map[string]values.Value {
 	return it.fixedTags
 }
 
-func (it *Save) CopyFromTagger(st graph.Tagger) {
+func (it *Save) CopyFromTagger(st Tagger) {
 	it.tags = append(it.tags, st.Tags()...)
 
 	fixed := st.FixedTags()
@@ -67,14 +67,14 @@ func (it *Save) CopyFromTagger(st graph.Tagger) {
 		return
 	}
 	if it.fixedTags == nil {
-		it.fixedTags = make(map[string]graph.Value, len(fixed))
+		it.fixedTags = make(map[string]values.Value, len(fixed))
 	}
 	for k, v := range fixed {
 		it.fixedTags[k] = v
 	}
 }
 
-func (it *Save) TagResults(dst map[string]graph.Value) {
+func (it *Save) TagResults(dst map[string]values.Value) {
 	it.it.TagResults(dst)
 
 	v := it.Result()
@@ -87,7 +87,7 @@ func (it *Save) TagResults(dst map[string]graph.Value) {
 	}
 }
 
-func (it *Save) Result() graph.Value {
+func (it *Save) Result() values.Value {
 	return it.it.Result()
 }
 
@@ -99,7 +99,7 @@ func (it *Save) NextPath(ctx context.Context) bool {
 	return it.it.NextPath(ctx)
 }
 
-func (it *Save) Contains(ctx context.Context, v graph.Value) bool {
+func (it *Save) Contains(ctx context.Context, v values.Value) bool {
 	return it.it.Contains(ctx, v)
 }
 
@@ -111,7 +111,7 @@ func (it *Save) Reset() {
 	it.it.Reset()
 }
 
-func (it *Save) Stats() graph.IteratorStats {
+func (it *Save) Stats() IteratorStats {
 	return it.it.Stats()
 }
 
@@ -119,25 +119,8 @@ func (it *Save) Size() (int64, bool) {
 	return it.it.Size()
 }
 
-func (it *Save) Optimize() (nit graph.Iterator, no bool) {
-	sub, ok := it.it.Optimize()
-	if len(it.tags) == 0 && len(it.fixedTags) == 0 {
-		return sub, true
-	}
-	if st, ok2 := sub.(graph.Tagger); ok2 {
-		st.CopyFromTagger(it)
-		return st, true
-	}
-	if !ok {
-		return it, false
-	}
-	s := NewSave(sub)
-	s.CopyFromTagger(it)
-	return s, true
-}
-
-func (it *Save) SubIterators() []graph.Iterator {
-	return []graph.Iterator{it.it}
+func (it *Save) SubIterators() []Generic {
+	return []Generic{it.it}
 }
 
 func (it *Save) Close() error {

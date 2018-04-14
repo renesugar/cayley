@@ -23,6 +23,7 @@ import (
 	"github.com/cayleygraph/cayley/clog"
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/internal/lru"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/quad/pquads"
@@ -555,7 +556,7 @@ func (opt Options) toQuadValue(d Document) (quad.Value, error) {
 	return nil, fmt.Errorf("unsupported value: %#v", d)
 }
 
-func (qs *QuadStore) Quad(val graph.Value) quad.Quad {
+func (qs *QuadStore) Quad(val values.Value) quad.Quad {
 	h := val.(QuadHash)
 	return quad.Quad{
 		Subject:   qs.NameOf(NodeHash(h.Get(quad.Subject))),
@@ -565,7 +566,7 @@ func (qs *QuadStore) Quad(val graph.Value) quad.Quad {
 	}
 }
 
-func (qs *QuadStore) QuadIterator(d quad.Direction, val graph.Value) graph.Iterator {
+func (qs *QuadStore) QuadIterator(d quad.Direction, val values.Value) iterator.Iterator {
 	h, ok := val.(NodeHash)
 	if !ok {
 		return iterator.NewNull()
@@ -573,11 +574,11 @@ func (qs *QuadStore) QuadIterator(d quad.Direction, val graph.Value) graph.Itera
 	return NewLinksToIterator(qs, "quads", []Linkage{{Dir: d, Val: h}})
 }
 
-func (qs *QuadStore) NodesAllIterator() graph.Iterator {
+func (qs *QuadStore) NodesAllIterator() iterator.Iterator {
 	return NewAllIterator(qs, "nodes")
 }
 
-func (qs *QuadStore) QuadsAllIterator() graph.Iterator {
+func (qs *QuadStore) QuadsAllIterator() iterator.Iterator {
 	return NewAllIterator(qs, "quads")
 }
 
@@ -585,14 +586,14 @@ func (qs *QuadStore) hashOf(s quad.Value) NodeHash {
 	return NodeHash(hashOf(s))
 }
 
-func (qs *QuadStore) ValueOf(s quad.Value) graph.Value {
+func (qs *QuadStore) ValueOf(s quad.Value) values.Value {
 	if s == nil {
 		return nil
 	}
 	return qs.hashOf(s)
 }
 
-func (qs *QuadStore) NameOf(v graph.Value) quad.Value {
+func (qs *QuadStore) NameOf(v values.Value) quad.Value {
 	if v == nil {
 		return nil
 	} else if v, ok := v.(graph.PreFetchedValue); ok {
@@ -636,7 +637,7 @@ func (qs *QuadStore) Close() error {
 	return qs.db.Close()
 }
 
-func (qs *QuadStore) QuadDirection(in graph.Value, d quad.Direction) graph.Value {
+func (qs *QuadStore) QuadDirection(in values.Value, d quad.Direction) values.Value {
 	return NodeHash(in.(QuadHash).Get(d))
 }
 

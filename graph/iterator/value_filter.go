@@ -17,28 +17,26 @@ package iterator
 import (
 	"context"
 
-	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
 )
 
-var _ graph.Iterator = &ValueFilter{}
+var _ VIterator = &ValueFilter{}
 
 type ValueFilter struct {
 	uid    uint64
-	sub    graph.Iterator
+	sub    VIterator
 	filter ValueFilterFunc
-	qs     graph.Namer
-	result graph.Value
+	result quad.Value
 	err    error
 }
 
 type ValueFilterFunc func(quad.Value) (bool, error)
 
-func NewValueFilter(qs graph.Namer, sub graph.Iterator, filter ValueFilterFunc) *ValueFilter {
+func NewValueFilter(sub VIterator, filter ValueFilterFunc) *ValueFilter {
 	return &ValueFilter{
 		uid:    NextUID(),
 		sub:    sub,
-		qs:     qs,
 		filter: filter,
 	}
 }
@@ -47,9 +45,8 @@ func (it *ValueFilter) UID() uint64 {
 	return it.uid
 }
 
-func (it *ValueFilter) doFilter(val graph.Value) bool {
-	qval := it.qs.NameOf(val)
-	ok, err := it.filter(qval)
+func (it *ValueFilter) doFilter(val quad.Value) bool {
+	ok, err := it.filter(val)
 	if err != nil {
 		it.err = err
 	}
@@ -82,7 +79,7 @@ func (it *ValueFilter) Err() error {
 	return it.err
 }
 
-func (it *ValueFilter) Result() graph.Value {
+func (it *ValueFilter) Result() quad.Value {
 	return it.result
 }
 
@@ -101,11 +98,11 @@ func (it *ValueFilter) NextPath(ctx context.Context) bool {
 	return true
 }
 
-func (it *ValueFilter) SubIterators() []graph.Iterator {
-	return []graph.Iterator{it.sub}
+func (it *ValueFilter) SubIterators() []Generic {
+	return []Generic{it.sub}
 }
 
-func (it *ValueFilter) Contains(ctx context.Context, val graph.Value) bool {
+func (it *ValueFilter) Contains(ctx context.Context, val quad.Value) bool {
 	if !it.doFilter(val) {
 		return false
 	}
@@ -118,7 +115,7 @@ func (it *ValueFilter) Contains(ctx context.Context, val graph.Value) bool {
 
 // If we failed the check, then the subiterator should not contribute to the result
 // set. Otherwise, go ahead and tag it.
-func (it *ValueFilter) TagResults(dst map[string]graph.Value) {
+func (it *ValueFilter) TagResults(dst map[string]values.Value) {
 	it.sub.TagResults(dst)
 }
 
@@ -126,21 +123,9 @@ func (it *ValueFilter) String() string {
 	return "ValueFilter"
 }
 
-// There's nothing to optimize, locally, for a value-comparison iterator.
-// Replace the underlying iterator if need be.
-// potentially replace it.
-func (it *ValueFilter) Optimize() (graph.Iterator, bool) {
-	newSub, changed := it.sub.Optimize()
-	if changed {
-		it.sub.Close()
-		it.sub = newSub
-	}
-	return it, false
-}
-
 // We're only as expensive as our subiterator.
 // Again, optimized value comparison iterators should do better.
-func (it *ValueFilter) Stats() graph.IteratorStats {
+func (it *ValueFilter) Stats() IteratorStats {
 	return it.sub.Stats()
 }
 

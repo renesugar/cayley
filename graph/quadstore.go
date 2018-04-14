@@ -27,14 +27,16 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query/shape"
 )
 
 type BatchQuadStore interface {
-	ValuesOf(ctx context.Context, vals []Value) ([]quad.Value, error)
+	ValuesOf(ctx context.Context, vals []values.Value) ([]quad.Value, error)
 }
 
-func ValuesOf(ctx context.Context, qs Namer, vals []Value) ([]quad.Value, error) {
+func ValuesOf(ctx context.Context, qs Namer, vals []values.Value) ([]quad.Value, error) {
 	if bq, ok := qs.(BatchQuadStore); ok {
 		return bq.ValuesOf(ctx, vals)
 	}
@@ -48,18 +50,20 @@ func ValuesOf(ctx context.Context, qs Namer, vals []Value) ([]quad.Value, error)
 type Namer interface {
 	// Given a node ID, return the opaque token used by the QuadStore
 	// to represent that id.
-	ValueOf(quad.Value) Value
+	ValueOf(quad.Value) values.Value
 	// Given an opaque token, return the node that it represents.
-	NameOf(Value) quad.Value
+	NameOf(values.Value) quad.Value
 }
 
 type QuadIndexer interface {
 	// Given an opaque token, returns the quad for that token from the store.
-	Quad(Value) quad.Quad
+	Quad(values.Value) quad.Quad
 
 	// Given a direction and a token, creates an iterator of links which have
 	// that node token in that directional field.
-	QuadIterator(quad.Direction, Value) Iterator
+	QuadIterator(quad.Direction, values.Value) shape.Shape
+
+	// TODO: QuadDirection should be an optional interface on Value
 
 	// Convenience function for speed. Given a quad token and a direction
 	// return the node token for that direction. Sometimes, a QuadStore
@@ -70,7 +74,14 @@ type QuadIndexer interface {
 	//
 	//  qs.ValueOf(qs.Quad(id).Get(dir))
 	//
-	QuadDirection(id Value, d quad.Direction) Value
+	QuadDirection(id values.Value, d quad.Direction) values.Value
+}
+
+type Stats struct {
+	//Exact bool  `json:"exact,omitempty"`
+	//Nodes int64 `json:"nodes,omitempty"`
+
+	Links int64 `json:"links,omitempty"`
 }
 
 type QuadStore interface {
@@ -81,14 +92,14 @@ type QuadStore interface {
 	// is done by a replication strategy.
 	ApplyDeltas(in []Delta, opts IgnoreOpts) error
 
-	// Returns an iterator enumerating all nodes in the graph.
-	NodesAllIterator() Iterator
+	// Returns a query that enumerates all nodes in the graph.
+	AllNodes() shape.Shape
 
-	// Returns an iterator enumerating all links in the graph.
-	QuadsAllIterator() Iterator
+	// Returns a query that enumerates all links in the graph.
+	AllQuads() shape.Shape
 
 	// Returns the number of quads currently stored.
-	Size() int64
+	Stats() Stats
 
 	// Close the quad store and clean up. (Flush to disk, cleanly
 	// sever connections, etc)

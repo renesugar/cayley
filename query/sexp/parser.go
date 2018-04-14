@@ -19,8 +19,8 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
-	"github.com/cayleygraph/cayley/graph/shape"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query/shape"
 )
 
 func BuildIteratorTreeForQuery(qs graph.QuadStore, query string) graph.Iterator {

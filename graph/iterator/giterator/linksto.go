@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package iterator
+package giterator
 
 // Defines one of the base iterators, the LinksTo iterator. A LinksTo takes a
 // subiterator of nodes, and contains an iteration of links which "link to"
@@ -34,10 +34,12 @@ import (
 	"fmt"
 
 	"github.com/cayleygraph/cayley/graph"
+	. "github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
 )
 
-var _ graph.Iterator = &LinksTo{}
+var _ Iterator = &LinksTo{}
 
 // A LinksTo has a reference back to the graph.QuadStore (to create the iterators
 // for each node) the subiterator, and the direction the iterator comes from.
@@ -45,17 +47,17 @@ var _ graph.Iterator = &LinksTo{}
 type LinksTo struct {
 	uid       uint64
 	qs        graph.QuadIndexer
-	primaryIt graph.Iterator
+	primaryIt Iterator
 	dir       quad.Direction
-	nextIt    graph.Iterator
-	result    graph.Value
-	runstats  graph.IteratorStats
+	nextIt    Iterator
+	result    values.Value
+	runstats  IteratorStats
 	err       error
 }
 
 // Construct a new LinksTo iterator around a direction and a subiterator of
 // nodes.
-func NewLinksTo(qs graph.QuadIndexer, it graph.Iterator, d quad.Direction) *LinksTo {
+func NewLinksTo(qs graph.QuadIndexer, it Iterator, d quad.Direction) *LinksTo {
 	return &LinksTo{
 		uid:       NextUID(),
 		qs:        qs,
@@ -81,7 +83,7 @@ func (it *LinksTo) Reset() {
 func (it *LinksTo) Direction() quad.Direction { return it.dir }
 
 // Tag these results, and our subiterator's results.
-func (it *LinksTo) TagResults(dst map[string]graph.Value) {
+func (it *LinksTo) TagResults(dst map[string]values.Value) {
 	it.primaryIt.TagResults(dst)
 }
 
@@ -91,7 +93,7 @@ func (it *LinksTo) String() string {
 
 // If it checks in the right direction for the subiterator, it is a valid link
 // for the LinksTo.
-func (it *LinksTo) Contains(ctx context.Context, val graph.Value) bool {
+func (it *LinksTo) Contains(ctx context.Context, val values.Value) bool {
 	it.runstats.Contains += 1
 	node := it.qs.QuadDirection(val, it.dir)
 	if it.primaryIt.Contains(ctx, node) {
@@ -103,12 +105,12 @@ func (it *LinksTo) Contains(ctx context.Context, val graph.Value) bool {
 }
 
 // Return a list containing only our subiterator.
-func (it *LinksTo) SubIterators() []graph.Iterator {
-	return []graph.Iterator{it.primaryIt}
+func (it *LinksTo) SubIterators() []Iterator {
+	return []Iterator{it.primaryIt}
 }
 
 // Optimize the LinksTo, by replacing it if it can be.
-func (it *LinksTo) Optimize() (graph.Iterator, bool) {
+func (it *LinksTo) Optimize() (Iterator, bool) {
 	newPrimary, changed := it.primaryIt.Optimize()
 	if changed {
 		it.primaryIt = newPrimary
@@ -145,7 +147,7 @@ func (it *LinksTo) Next(ctx context.Context) bool {
 			return false
 		}
 		it.nextIt.Close()
-		it.nextIt = it.qs.QuadIterator(it.dir, it.primaryIt.Result())
+		it.nextIt = it.qs.QuadIterator(it.dir, it.primaryIt.Result()).BuildIterator()
 
 		// Continue -- return the first in the next set.
 	}
@@ -155,7 +157,7 @@ func (it *LinksTo) Err() error {
 	return it.err
 }
 
-func (it *LinksTo) Result() graph.Value {
+func (it *LinksTo) Result() values.Value {
 	return it.result
 }
 
@@ -182,12 +184,12 @@ func (it *LinksTo) NextPath(ctx context.Context) bool {
 }
 
 // Return a guess as to how big or costly it is to next the iterator.
-func (it *LinksTo) Stats() graph.IteratorStats {
+func (it *LinksTo) Stats() IteratorStats {
 	subitStats := it.primaryIt.Stats()
 	// TODO(barakmich): These should really come from the quadstore itself
 	checkConstant := int64(1)
 	nextConstant := int64(2)
-	st := graph.IteratorStats{
+	st := IteratorStats{
 		NextCost:     nextConstant + subitStats.NextCost,
 		ContainsCost: checkConstant + subitStats.ContainsCost,
 		Next:         it.runstats.Next,
@@ -209,7 +211,7 @@ func (it *LinksTo) Size() (int64, bool) {
 			exact = true
 		)
 		for _, v := range fixed.Values() {
-			sit := it.qs.QuadIterator(it.dir, v)
+			sit := it.qs.QuadIterator(it.dir, v).BuildIterator()
 			n, ex := sit.Size()
 			sit.Close()
 			sz += n

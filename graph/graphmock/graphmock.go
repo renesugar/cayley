@@ -5,12 +5,13 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
 )
 
 var (
-	_ graph.Value = IntVal(0)
-	_ graph.Value = StringNode("")
+	_ values.Value = IntVal(0)
+	_ values.Value = StringNode("")
 )
 
 type IntVal int
@@ -25,7 +26,7 @@ func (s StringNode) Key() interface{} { return s }
 type Oldstore struct {
 	Parse bool
 	Data  []string
-	Iter  graph.Iterator
+	Iter  iterator.Iterator
 }
 
 func (qs *Oldstore) valueAt(i int) quad.Value {
@@ -39,7 +40,7 @@ func (qs *Oldstore) valueAt(i int) quad.Value {
 	return quad.String(qs.Data[i])
 }
 
-func (qs *Oldstore) ValueOf(s quad.Value) graph.Value {
+func (qs *Oldstore) ValueOf(s quad.Value) values.Value {
 	if s == nil {
 		return nil
 	}
@@ -53,17 +54,17 @@ func (qs *Oldstore) ValueOf(s quad.Value) graph.Value {
 
 func (qs *Oldstore) ApplyDeltas([]graph.Delta, graph.IgnoreOpts) error { return nil }
 
-func (qs *Oldstore) Quad(graph.Value) quad.Quad { return quad.Quad{} }
+func (qs *Oldstore) Quad(values.Value) quad.Quad { return quad.Quad{} }
 
-func (qs *Oldstore) QuadIterator(d quad.Direction, i graph.Value) graph.Iterator {
+func (qs *Oldstore) QuadIterator(d quad.Direction, i values.Value) iterator.Iterator {
 	return qs.Iter
 }
 
-func (qs *Oldstore) NodesAllIterator() graph.Iterator { return &iterator.Null{} }
+func (qs *Oldstore) NodesAllIterator() iterator.Iterator { return &iterator.Null{} }
 
-func (qs *Oldstore) QuadsAllIterator() graph.Iterator { return &iterator.Null{} }
+func (qs *Oldstore) QuadsAllIterator() iterator.Iterator { return &iterator.Null{} }
 
-func (qs *Oldstore) NameOf(v graph.Value) quad.Value {
+func (qs *Oldstore) NameOf(v values.Value) quad.Value {
 	switch v.(type) {
 	case iterator.Int64Node:
 		i := int(v.(iterator.Int64Node))
@@ -85,13 +86,13 @@ func (qs *Oldstore) Size() int64 { return 0 }
 
 func (qs *Oldstore) DebugPrint() {}
 
-func (qs *Oldstore) OptimizeIterator(it graph.Iterator) (graph.Iterator, bool) {
+func (qs *Oldstore) OptimizeIterator(it iterator.Iterator) (iterator.Iterator, bool) {
 	return &iterator.Null{}, false
 }
 
 func (qs *Oldstore) Close() error { return nil }
 
-func (qs *Oldstore) QuadDirection(graph.Value, quad.Direction) graph.Value {
+func (qs *Oldstore) QuadDirection(values.Value, quad.Direction) values.Value {
 	return iterator.Int64Node(0)
 }
 
@@ -105,8 +106,8 @@ type Store struct {
 
 var _ graph.QuadStore = &Store{}
 
-func (qs *Store) ValueOf(s quad.Value) graph.Value {
-	return graph.PreFetched(s)
+func (qs *Store) ValueOf(s quad.Value) values.Value {
+	return values.PreFetched(s)
 }
 
 func (qs *Store) ApplyDeltas([]graph.Delta, graph.IgnoreOpts) error { return nil }
@@ -119,30 +120,30 @@ func (q quadValue) Key() interface{} {
 	return q.q.String()
 }
 
-func (qs *Store) Quad(v graph.Value) quad.Quad { return v.(quadValue).q }
+func (qs *Store) Quad(v values.Value) quad.Quad { return v.(quadValue).q }
 
-func (qs *Store) NameOf(v graph.Value) quad.Value {
+func (qs *Store) NameOf(v values.Value) quad.Value {
 	if v == nil {
 		return nil
 	}
-	return v.(graph.PreFetchedValue).NameOf()
+	return v.(values.PreFetchedValue).NameOf()
 }
 
 func (qs *Store) RemoveQuad(t quad.Quad) {}
 
 func (qs *Store) Type() string { return "mockstore" }
 
-func (qs *Store) QuadDirection(v graph.Value, d quad.Direction) graph.Value {
-	return graph.PreFetched(qs.Quad(v).Get(d))
+func (qs *Store) QuadDirection(v values.Value, d quad.Direction) values.Value {
+	return values.PreFetched(qs.Quad(v).Get(d))
 }
 
 func (qs *Store) Close() error { return nil }
 
 func (qs *Store) DebugPrint() {}
 
-func (qs *Store) QuadIterator(d quad.Direction, i graph.Value) graph.Iterator {
+func (qs *Store) QuadIterator(d quad.Direction, i values.Value) iterator.Iterator {
 	fixed := iterator.NewFixed()
-	v := i.(graph.PreFetchedValue).NameOf()
+	v := i.(values.PreFetchedValue).NameOf()
 	for _, q := range qs.Data {
 		if q.Get(d) == v {
 			fixed.Add(quadValue{q})
@@ -151,11 +152,11 @@ func (qs *Store) QuadIterator(d quad.Direction, i graph.Value) graph.Iterator {
 	return fixed
 }
 
-func (qs *Store) NodesAllIterator() graph.Iterator {
+func (qs *Store) NodesAllIterator() iterator.Iterator {
 	set := make(map[string]bool)
 	for _, q := range qs.Data {
 		for _, d := range quad.Directions {
-			n := qs.NameOf(graph.PreFetched(q.Get(d)))
+			n := qs.NameOf(values.PreFetched(q.Get(d)))
 			if n != nil {
 				set[n.String()] = true
 			}
@@ -163,12 +164,12 @@ func (qs *Store) NodesAllIterator() graph.Iterator {
 	}
 	fixed := iterator.NewFixed()
 	for k := range set {
-		fixed.Add(graph.PreFetched(quad.Raw(k)))
+		fixed.Add(values.PreFetched(quad.Raw(k)))
 	}
 	return fixed
 }
 
-func (qs *Store) QuadsAllIterator() graph.Iterator {
+func (qs *Store) QuadsAllIterator() iterator.Iterator {
 	fixed := iterator.NewFixed()
 	for _, q := range qs.Data {
 		fixed.Add(quadValue{q})

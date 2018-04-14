@@ -23,12 +23,13 @@ import (
 	"time"
 
 	. "github.com/cayleygraph/cayley/graph/path"
+	"github.com/cayleygraph/cayley/graph/values"
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/graphtest/testutil"
-	"github.com/cayleygraph/cayley/graph/iterator"
-	"github.com/cayleygraph/cayley/graph/shape"
+	"github.com/cayleygraph/cayley/graph/iterator/giterator"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query/shape/gshape"
 	_ "github.com/cayleygraph/cayley/writer"
 )
 
@@ -77,7 +78,7 @@ func runTag(qs graph.QuadStore, path *Path, tag string, opt bool) ([]quad.Value,
 	if !opt {
 		pb = pb.UnOptimized()
 	}
-	err := pb.Paths(true).TagEach(func(tags map[string]graph.Value) {
+	err := pb.Paths(true).TagEach(func(tags map[string]values.Value) {
 		if t, ok := tags[tag]; ok {
 			out = append(out, qs.NameOf(t))
 		}
@@ -148,12 +149,12 @@ func testSet(qs graph.QuadStore) []test {
 		},
 		{
 			message: "filter nodes",
-			path:    StartPath(qs).Filter(iterator.CompareGT, quad.IRI("p")),
+			path:    StartPath(qs).Filter(giterator.CompareGT, quad.IRI("p")),
 			expect:  []quad.Value{vPredicate, vSmartGraph, vStatus},
 		},
 		{
 			message: "in with filter",
-			path:    StartPath(qs, vBob).In(vFollows).Filter(iterator.CompareGT, quad.IRI("c")),
+			path:    StartPath(qs, vBob).In(vFollows).Filter(giterator.CompareGT, quad.IRI("c")),
 			expect:  []quad.Value{vCharlie, vDani},
 		},
 		{
@@ -243,30 +244,30 @@ func testSet(qs graph.QuadStore) []test {
 		},
 		{
 			message: "filter nodes with has",
-			path: StartPath(qs).HasFilter(vFollows, false, shape.Comparison{
-				Op: iterator.CompareGT, Val: quad.IRI("f"),
+			path: StartPath(qs).HasFilter(vFollows, false, gshape.Comparison{
+				Op: giterator.CompareGT, Val: quad.IRI("f"),
 			}),
 			expect: []quad.Value{vBob, vDani, vEmily, vFred},
 		},
 		{
 			message: "string prefix",
-			path: StartPath(qs).Filters(shape.Wildcard{
+			path: StartPath(qs).Filters(gshape.Wildcard{
 				Pattern: `bo%`,
 			}),
 			expect: []quad.Value{vBob},
 		},
 		{
 			message: "three letters and range",
-			path: StartPath(qs).Filters(shape.Wildcard{
+			path: StartPath(qs).Filters(gshape.Wildcard{
 				Pattern: `???`,
-			}, shape.Comparison{
-				Op: iterator.CompareGT, Val: quad.IRI("b"),
+			}, gshape.Comparison{
+				Op: giterator.CompareGT, Val: quad.IRI("b"),
 			}),
 			expect: []quad.Value{vBob},
 		},
 		{
 			message: "part in string",
-			path: StartPath(qs).Filters(shape.Wildcard{
+			path: StartPath(qs).Filters(gshape.Wildcard{
 				Pattern: `%ed%`,
 			}),
 			expect: []quad.Value{vFred, vPredicate},

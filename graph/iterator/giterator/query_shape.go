@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package iterator
+package giterator
 
 import (
 	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/quad"
 )
 
@@ -43,7 +44,7 @@ type queryShape struct {
 	hasaDirs []quad.Direction
 }
 
-func OutputQueryShapeForIterator(it graph.Iterator, qs graph.Namer, outputMap map[string]interface{}) {
+func OutputQueryShapeForIterator(it iterator.Iterator, qs graph.Namer, outputMap map[string]interface{}) {
 	s := &queryShape{
 		qs:     qs,
 		nodeID: 1,
@@ -106,12 +107,12 @@ func (s *queryShape) StealNode(left *Node, right *Node) {
 	}
 }
 
-func (s *queryShape) MakeNode(it graph.Iterator) *Node {
+func (s *queryShape) MakeNode(it iterator.Iterator) *Node {
 	n := Node{ID: s.nodeID}
 	return s.makeNode(&n, it)
 }
-func (s *queryShape) makeNode(n *Node, it graph.Iterator) *Node {
-	if tg, ok := it.(graph.Tagger); ok {
+func (s *queryShape) makeNode(n *Node, it iterator.Iterator) *Node {
+	if tg, ok := it.(iterator.Tagger); ok {
 		for _, tag := range tg.Tags() {
 			n.Tags = append(n.Tags, tag)
 		}
@@ -124,18 +125,18 @@ func (s *queryShape) makeNode(n *Node, it graph.Iterator) *Node {
 	}
 
 	switch it := it.(type) {
-	case *And:
+	case *iterator.And:
 		for _, sub := range it.SubIterators() {
 			s.nodeID++
 			newNode := s.MakeNode(sub)
-			if _, ok := sub.(*Or); !ok {
+			if _, ok := sub.(*iterator.Or); !ok {
 				s.StealNode(n, newNode)
 			} else {
 				s.AddNode(newNode)
 				s.AddLink(&Link{n.ID, newNode.ID, 0, 0})
 			}
 		}
-	case *Fixed:
+	case *iterator.Fixed:
 		n.IsFixed = true
 		for _, v := range it.Values() {
 			n.Values = append(n.Values, s.qs.NameOf(v).String())
@@ -147,11 +148,11 @@ func (s *queryShape) makeNode(n *Node, it graph.Iterator) *Node {
 		newNode := s.MakeNode(hasa.primaryIt)
 		s.AddNode(newNode)
 		s.RemoveHasa()
-	case *Or:
+	case *iterator.Or:
 		for _, sub := range it.SubIterators() {
 			s.nodeID++
 			newNode := s.MakeNode(sub)
-			if _, ok := sub.(*Or); ok {
+			if _, ok := sub.(*iterator.Or); ok {
 				s.StealNode(n, newNode)
 			} else {
 				s.AddNode(newNode)
@@ -172,7 +173,7 @@ func (s *queryShape) makeNode(n *Node, it graph.Iterator) *Node {
 			} else {
 				s.AddLink(&Link{newNode.ID, hasaID, 0, n.ID})
 			}
-		} else if _, ok := lto.primaryIt.(*Fixed); ok {
+		} else if _, ok := lto.primaryIt.(*iterator.Fixed); ok {
 			s.StealNode(n, newNode)
 		} else {
 			s.AddNode(newNode)

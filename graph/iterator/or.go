@@ -24,24 +24,24 @@ package iterator
 import (
 	"context"
 
-	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/values"
 )
 
-var _ graph.Iterator = &Or{}
+var _ Iterator = &Or{}
 
 type Or struct {
 	uid               uint64
 	isShortCircuiting bool
-	internalIterators []graph.Iterator
+	internalIterators []Iterator
 	currentIterator   int
-	result            graph.Value
+	result            values.Value
 	err               error
 }
 
-func NewOr(sub ...graph.Iterator) *Or {
+func NewOr(sub ...Iterator) *Or {
 	it := &Or{
 		uid:               NextUID(),
-		internalIterators: make([]graph.Iterator, 0, 20),
+		internalIterators: make([]Iterator, 0, 20),
 		currentIterator:   -1,
 	}
 	for _, s := range sub {
@@ -53,7 +53,7 @@ func NewOr(sub ...graph.Iterator) *Or {
 func NewShortCircuitOr() *Or {
 	return &Or{
 		uid:               NextUID(),
-		internalIterators: make([]graph.Iterator, 0, 20),
+		internalIterators: make([]Iterator, 0, 20),
 		isShortCircuiting: true,
 		currentIterator:   -1,
 	}
@@ -72,13 +72,17 @@ func (it *Or) Reset() {
 }
 
 // Returns a list.List of the subiterators, in order. The returned slice must not be modified.
-func (it *Or) SubIterators() []graph.Iterator {
-	return it.internalIterators
+func (it *Or) SubIterators() []Generic {
+	its := make([]Generic, 0, len(it.internalIterators))
+	for _, sit := range it.internalIterators {
+		its = append(its, sit)
+	}
+	return its
 }
 
 // Overrides BaseIterator TagResults, as it needs to add it's own results and
 // recurse down it's subiterators.
-func (it *Or) TagResults(dst map[string]graph.Value) {
+func (it *Or) TagResults(dst map[string]values.Value) {
 	it.internalIterators[it.currentIterator].TagResults(dst)
 }
 
@@ -87,7 +91,7 @@ func (it *Or) String() string {
 }
 
 // Add a subiterator to this Or graph.iterator. Order matters.
-func (it *Or) AddSubIterator(sub graph.Iterator) {
+func (it *Or) AddSubIterator(sub Iterator) {
 	it.internalIterators = append(it.internalIterators, sub)
 }
 
@@ -132,12 +136,12 @@ func (it *Or) Err() error {
 	return it.err
 }
 
-func (it *Or) Result() graph.Value {
+func (it *Or) Result() values.Value {
 	return it.result
 }
 
 // Checks a value against the iterators, in order.
-func (it *Or) subItsContain(ctx context.Context, val graph.Value) (bool, error) {
+func (it *Or) subItsContain(ctx context.Context, val values.Value) (bool, error) {
 	var subIsGood = false
 	for i, sub := range it.internalIterators {
 		subIsGood = sub.Contains(ctx, val)
@@ -155,7 +159,7 @@ func (it *Or) subItsContain(ctx context.Context, val graph.Value) (bool, error) 
 }
 
 // Check a value against the entire graph.iterator, in order.
-func (it *Or) Contains(ctx context.Context, val graph.Value) bool {
+func (it *Or) Contains(ctx context.Context, val values.Value) bool {
 	anyGood, err := it.subItsContain(ctx, val)
 	if err != nil {
 		it.err = err
@@ -232,9 +236,8 @@ func (it *Or) Close() error {
 	return err
 }
 
-func (it *Or) Optimize() (graph.Iterator, bool) {
-	old := it.SubIterators()
-	optIts := optimizeSubIterators(old)
+func (it *Or) Optimize() (Iterator, bool) {
+	optIts := optimizeSubIterators(it.internalIterators)
 	newOr := NewOr()
 	newOr.isShortCircuiting = it.isShortCircuiting
 
@@ -250,7 +253,7 @@ func (it *Or) Optimize() (graph.Iterator, bool) {
 	return newOr, true
 }
 
-func (it *Or) Stats() graph.IteratorStats {
+func (it *Or) Stats() IteratorStats {
 	ContainsCost := int64(0)
 	NextCost := int64(0)
 	Size := int64(0)
@@ -269,7 +272,7 @@ func (it *Or) Stats() graph.IteratorStats {
 			Exact = Exact && stats.ExactSize
 		}
 	}
-	return graph.IteratorStats{
+	return IteratorStats{
 		ContainsCost: ContainsCost,
 		NextCost:     NextCost,
 		Size:         Size,

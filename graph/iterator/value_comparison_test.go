@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package iterator_test
+package iterator
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/graphmock"
-	. "github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
 )
 
@@ -157,7 +157,7 @@ func TestValueComparison(t *testing.T) {
 var vciContainsTests = []struct {
 	message  string
 	operator Operator
-	check    graph.Value
+	check    values.Value
 	expect   bool
 	qs       graph.Namer
 	val      quad.Value

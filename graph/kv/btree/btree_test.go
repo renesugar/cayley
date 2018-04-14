@@ -18,11 +18,11 @@ import (
 	"testing"
 
 	"github.com/cayleygraph/cayley/graph"
-	"github.com/cayleygraph/cayley/graph/kv"
 	"github.com/cayleygraph/cayley/graph/kv/kvtest"
+	ukv "github.com/nwca/uda/kv"
 )
 
-func makeBtree(t testing.TB) (kv.BucketKV, graph.Options, func()) {
+func makeBtree(t testing.TB) (ukv.KV, graph.Options, func()) {
 	return New(), nil, func() {}
 }
 

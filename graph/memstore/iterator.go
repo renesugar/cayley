@@ -20,12 +20,12 @@ import (
 	"io"
 	"math"
 
-	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
 )
 
-var _ graph.Iterator = &Iterator{}
+var _ iterator.Iterator = &Iterator{}
 
 type Iterator struct {
 	nodes bool
@@ -62,7 +62,7 @@ func (it *Iterator) Reset() {
 	it.cur = nil
 }
 
-func (it *Iterator) TagResults(dst map[string]graph.Value) {}
+func (it *Iterator) TagResults(dst map[string]values.Value) {}
 
 func (it *Iterator) Close() error {
 	return nil
@@ -95,7 +95,7 @@ func (it *Iterator) Err() error {
 	return it.err
 }
 
-func (it *Iterator) Result() graph.Value {
+func (it *Iterator) Result() values.Value {
 	if it.cur == nil {
 		return nil
 	}
@@ -107,7 +107,7 @@ func (it *Iterator) NextPath(ctx context.Context) bool {
 }
 
 // No subiterators.
-func (it *Iterator) SubIterators() []graph.Iterator {
+func (it *Iterator) SubIterators() []iterator.Iterator {
 	return nil
 }
 
@@ -115,7 +115,7 @@ func (it *Iterator) Size() (int64, bool) {
 	return int64(it.tree.Len()), true
 }
 
-func (it *Iterator) Contains(ctx context.Context, v graph.Value) bool {
+func (it *Iterator) Contains(ctx context.Context, v values.Value) bool {
 	if v == nil {
 		return false
 	}
@@ -140,12 +140,12 @@ func (it *Iterator) String() string {
 
 func (it *Iterator) Sorted() bool { return true }
 
-func (it *Iterator) Optimize() (graph.Iterator, bool) {
+func (it *Iterator) Optimize() (iterator.Iterator, bool) {
 	return it, false
 }
 
-func (it *Iterator) Stats() graph.IteratorStats {
-	return graph.IteratorStats{
+func (it *Iterator) Stats() iterator.IteratorStats {
+	return iterator.IteratorStats{
 		ContainsCost: int64(math.Log(float64(it.tree.Len()))) + 1,
 		NextCost:     1,
 		Size:         int64(it.tree.Len()),

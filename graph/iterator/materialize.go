@@ -20,16 +20,16 @@ import (
 	"context"
 
 	"github.com/cayleygraph/cayley/clog"
-	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/values"
 )
 
-var _ graph.Iterator = &Materialize{}
+var _ Iterator = &Materialize{}
 
 const MaterializeLimit = 1000
 
 type result struct {
-	id   graph.Value
-	tags map[string]graph.Value
+	id   values.Value
+	tags map[string]values.Value
 }
 
 type Materialize struct {
@@ -40,18 +40,18 @@ type Materialize struct {
 	expectSize  int64
 	index       int
 	subindex    int
-	subIt       graph.Iterator
+	subIt       Iterator
 	hasRun      bool
 	aborted     bool
-	runstats    graph.IteratorStats
+	runstats    IteratorStats
 	err         error
 }
 
-func NewMaterialize(sub graph.Iterator) *Materialize {
+func NewMaterialize(sub Iterator) *Materialize {
 	return NewMaterializeWithSize(sub, 0)
 }
 
-func NewMaterializeWithSize(sub graph.Iterator, size int64) *Materialize {
+func NewMaterializeWithSize(sub Iterator, size int64) *Materialize {
 	return &Materialize{
 		uid:         NextUID(),
 		expectSize:  size,
@@ -77,7 +77,7 @@ func (it *Materialize) Close() error {
 	return it.subIt.Close()
 }
 
-func (it *Materialize) TagResults(dst map[string]graph.Value) {
+func (it *Materialize) TagResults(dst map[string]values.Value) {
 	if !it.hasRun {
 		return
 	}
@@ -97,7 +97,7 @@ func (it *Materialize) String() string {
 	return "Materialize"
 }
 
-func (it *Materialize) Result() graph.Value {
+func (it *Materialize) Result() values.Value {
 	if it.aborted {
 		return it.subIt.Result()
 	}
@@ -113,19 +113,8 @@ func (it *Materialize) Result() graph.Value {
 	return it.values[it.index][it.subindex].id
 }
 
-func (it *Materialize) SubIterators() []graph.Iterator {
-	return []graph.Iterator{it.subIt}
-}
-
-func (it *Materialize) Optimize() (graph.Iterator, bool) {
-	newSub, changed := it.subIt.Optimize()
-	if changed {
-		it.subIt = newSub
-		if _, ok := it.subIt.(*Null); ok {
-			return it.subIt, true
-		}
-	}
-	return it, false
+func (it *Materialize) SubIterators() []Generic {
+	return []Generic{it.subIt}
 }
 
 // Size is the number of values stored, if we've got them all.
@@ -145,7 +134,7 @@ func (it *Materialize) Size() (int64, bool) {
 
 // The entire point of Materialize is to amortize the cost by
 // putting it all up front.
-func (it *Materialize) Stats() graph.IteratorStats {
+func (it *Materialize) Stats() IteratorStats {
 	overhead := int64(2)
 	var (
 		size  int64
@@ -157,7 +146,7 @@ func (it *Materialize) Stats() graph.IteratorStats {
 		size, exact = it.Size()
 	}
 	subitStats := it.subIt.Stats()
-	return graph.IteratorStats{
+	return IteratorStats{
 		ContainsCost: overhead * subitStats.NextCost,
 		NextCost:     overhead * subitStats.NextCost,
 		Size:         size,
@@ -193,7 +182,7 @@ func (it *Materialize) Err() error {
 	return it.err
 }
 
-func (it *Materialize) Contains(ctx context.Context, v graph.Value) bool {
+func (it *Materialize) Contains(ctx context.Context, v values.Value) bool {
 	it.runstats.Contains += 1
 	if !it.hasRun {
 		it.materializeSet(ctx)
@@ -204,7 +193,7 @@ func (it *Materialize) Contains(ctx context.Context, v graph.Value) bool {
 	if it.aborted {
 		return it.subIt.Contains(ctx, v)
 	}
-	key := graph.ToKey(v)
+	key := values.ToKey(v)
 	if i, ok := it.containsMap[key]; ok {
 		it.index = i
 		it.subindex = 0
@@ -243,13 +232,13 @@ func (it *Materialize) materializeSet(ctx context.Context) {
 			break
 		}
 		id := it.subIt.Result()
-		val := graph.ToKey(id)
+		val := values.ToKey(id)
 		if _, ok := it.containsMap[val]; !ok {
 			it.containsMap[val] = len(it.values)
 			it.values = append(it.values, nil)
 		}
 		index := it.containsMap[val]
-		tags := make(map[string]graph.Value, mn)
+		tags := make(map[string]values.Value, mn)
 		it.subIt.TagResults(tags)
 		if n := len(tags); n > mn {
 			n = mn
@@ -262,7 +251,7 @@ func (it *Materialize) materializeSet(ctx context.Context) {
 				it.aborted = true
 				break
 			}
-			tags := make(map[string]graph.Value, mn)
+			tags := make(map[string]values.Value, mn)
 			it.subIt.TagResults(tags)
 			if n := len(tags); n > mn {
 				n = mn

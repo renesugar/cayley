@@ -20,11 +20,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/cayleygraph/cayley/graph"
 	. "github.com/cayleygraph/cayley/graph/iterator"
 )
 
-func iterated(it graph.Iterator) []int {
+func iterated(it Iterator) []int {
 	ctx := context.TODO()
 	var res []int
 	for it.Next(ctx) {

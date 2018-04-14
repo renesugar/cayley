@@ -18,152 +18,198 @@ package iterator
 
 import (
 	"context"
-	"fmt"
-	"sync/atomic"
+	"reflect"
 
-	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/values"
+	"github.com/cayleygraph/cayley/quad"
 )
 
-var nextIteratorID uint64
+// TODO(barakmich): Linkage is general enough that there are places we take
+//the combined arguments `quad.Direction, values.Value` that it may be worth
+//converting these into Linkages. If nothing else, future indexed iterators may
+//benefit from the shared representation
 
-func init() {
-	atomic.StoreUint64(&nextIteratorID, 1)
+// Linkage is a union type representing a set of values established for a given
+// quad direction.
+type Linkage struct {
+	Dir   quad.Direction
+	Value values.Value
 }
 
-func NextUID() uint64 {
-	return atomic.AddUint64(&nextIteratorID, 1) - 1
+// TODO(barakmich): Helper functions as needed, eg, ValuesForDirection(quad.Direction) []Value
+
+// Tagger is an interface for iterators that can tag values. Tags are returned as a part of TagResults call.
+type Tagger interface {
+	Iterator
+	Tags() []string
+	FixedTags() map[string]values.Value
+	AddTags(tag ...string)
+	AddFixedTag(tag string, value values.Value)
+	CopyFromTagger(st Tagger)
 }
 
-var (
-	_ graph.Iterator = &Null{}
-	_ graph.Iterator = &Error{}
-)
+type Generic interface {
+	// String returns a short textual representation of an iterator.
+	String() string
 
-type Morphism func(graph.Iterator) graph.Iterator
+	// Fills a tag-to-result-value map.
+	TagResults(map[string]values.Value)
 
-// Here we define the simplest iterator -- the Null iterator. It contains nothing.
-// It is the empty set. Often times, queries that contain one of these match nothing,
-// so it's important to give it a special iterator.
-type Null struct {
-	uid uint64
+	// Next advances the iterator to the next value, which will then be available through
+	// the Result method. It returns false if no further advancement is possible, or if an
+	// error was encountered during iteration.  Err should be consulted to distinguish
+	// between the two cases.
+	Next(ctx context.Context) bool
+
+	// These methods are the heart and soul of the iterator, as they constitute
+	// the iteration interface.
+	//
+	// To get the full results of iteration, do the following:
+	//
+	//  for graph.Next(it) {
+	//  	val := it.Result()
+	//  	... do things with val.
+	//  	for it.NextPath() {
+	//  		... find other paths to iterate
+	//  	}
+	//  }
+	//
+	// All of them should set iterator.result to be the last returned value, to
+	// make results work.
+	//
+	// NextPath() advances iterators that may have more than one valid result,
+	// from the bottom up.
+	NextPath(ctx context.Context) bool
+
+	// Err returns any error that was encountered by the Iterator.
+	Err() error
+
+	// Start iteration from the beginning
+	Reset()
+
+	// These methods relate to choosing the right iterator, or optimizing an
+	// iterator tree
+	//
+	// Stats() returns the relative costs of calling the iteration methods for
+	// this iterator, as well as the size. Roughly, it will take NextCost * Size
+	// "cost units" to get everything out of the iterator. This is a wibbly-wobbly
+	// thing, and not exact, but a useful heuristic.
+	Stats() IteratorStats
+
+	// Helpful accessor for the number of things in the iterator. The first return
+	// value is the size, and the second return value is whether that number is exact,
+	// or a conservative estimate.
+	Size() (int64, bool)
+
+	// TODO: make a requirement that Err should return ErrClosed after Close is called
+
+	// Close the iterator and do internal cleanup.
+	Close() error
+
+	// UID returns the unique identifier of the iterator.
+	UID() uint64
+
+	// Return a slice of the subiterators for this iterator.
+	SubIterators() []Generic
 }
 
-// Fairly useless New function.
-func NewNull() *Null {
-	return &Null{uid: NextUID()}
+type Iterator interface {
+	Generic
+
+	// Returns the current result.
+	Result() values.Value
+
+	// Contains returns whether the value is within the set held by the iterator.
+	Contains(ctx context.Context, v values.Value) bool
 }
 
-func (it *Null) UID() uint64 {
-	return it.uid
+type VIterator interface {
+	Generic
+
+	// Returns the current result.
+	Result() quad.Value
+
+	// Contains returns whether the value is within the set held by the iterator.
+	Contains(ctx context.Context, v quad.Value) bool
 }
 
-// Fill the map based on the tags assigned to this iterator.
-func (it *Null) TagResults(dst map[string]graph.Value) {}
-
-func (it *Null) Contains(ctx context.Context, v graph.Value) bool {
-	return false
+// DescribeIterator returns a description of the iterator tree.
+func DescribeIterator(it Generic) Description {
+	sz, exact := it.Size()
+	d := Description{
+		UID:  it.UID(),
+		Name: it.String(),
+		Type: reflect.TypeOf(it).String(),
+		Size: sz, Exact: exact,
+	}
+	if tg, ok := it.(Tagger); ok {
+		d.Tags = tg.Tags()
+	}
+	if sub := it.SubIterators(); len(sub) != 0 {
+		d.Iterators = make([]Description, 0, len(sub))
+		for _, sit := range sub {
+			d.Iterators = append(d.Iterators, DescribeIterator(sit))
+		}
+	}
+	return d
 }
 
-// A good iterator will close itself when it returns true.
-// Null has nothing it needs to do.
-func (it *Null) Optimize() (graph.Iterator, bool) { return it, false }
-
-func (it *Null) String() string {
-	return "Null"
+type Description struct {
+	UID       uint64        `json:",omitempty"`
+	Name      string        `json:",omitempty"`
+	Type      string        `json:",omitempty"`
+	Tags      []string      `json:",omitempty"`
+	Size      int64         `json:",omitempty"`
+	Exact     bool          `json:",omitempty"`
+	Iterators []Description `json:",omitempty"`
 }
 
-func (it *Null) Next(ctx context.Context) bool {
-	return false
+// Height is a convienence function to measure the height of an iterator tree.
+func Height(it Generic, filter func(Generic) bool) int {
+	if filter != nil && !filter(it) {
+		return 1
+	}
+	subs := it.SubIterators()
+	maxDepth := 0
+	for _, sub := range subs {
+		h := Height(sub, filter)
+		if h > maxDepth {
+			maxDepth = h
+		}
+	}
+	return maxDepth + 1
 }
 
-func (it *Null) Err() error {
-	return nil
+// FixedIterator wraps iterators that are modifiable by addition of fixed value sets.
+type FixedIterator interface {
+	Iterator
+	Add(values.Value)
 }
 
-func (it *Null) Result() graph.Value {
-	return nil
+type IteratorStats struct {
+	ContainsCost int64
+	NextCost     int64
+	Size         int64
+	ExactSize    bool
+	Next         int64
+	Contains     int64
+	ContainsNext int64
 }
 
-func (it *Null) SubIterators() []graph.Iterator {
-	return nil
+type StatsContainer struct {
+	UID  uint64
+	Type string
+	IteratorStats
+	SubIts []StatsContainer
 }
 
-func (it *Null) NextPath(ctx context.Context) bool {
-	return false
-}
-
-func (it *Null) Size() (int64, bool) {
-	return 0, true
-}
-
-func (it *Null) Reset() {}
-
-func (it *Null) Close() error {
-	return nil
-}
-
-// A null iterator costs nothing. Use it!
-func (it *Null) Stats() graph.IteratorStats {
-	return graph.IteratorStats{}
-}
-
-// Error iterator always returns a single error with no other results.
-type Error struct {
-	uid uint64
-	err error
-}
-
-func NewError(err error) *Error {
-	return &Error{uid: NextUID(), err: err}
-}
-
-func (it *Error) UID() uint64 {
-	return it.uid
-}
-
-// Fill the map based on the tags assigned to this iterator.
-func (it *Error) TagResults(dst map[string]graph.Value) {}
-
-func (it *Error) Contains(ctx context.Context, v graph.Value) bool {
-	return false
-}
-
-func (it *Error) Optimize() (graph.Iterator, bool) { return it, false }
-
-func (it *Error) String() string {
-	return fmt.Sprintf("Error(%v)", it.err)
-}
-
-func (it *Error) Next(ctx context.Context) bool {
-	return false
-}
-
-func (it *Error) Err() error {
-	return it.err
-}
-
-func (it *Error) Result() graph.Value {
-	return nil
-}
-
-func (it *Error) SubIterators() []graph.Iterator {
-	return nil
-}
-
-func (it *Error) NextPath(ctx context.Context) bool {
-	return false
-}
-
-func (it *Error) Size() (int64, bool) {
-	return 0, true
-}
-
-func (it *Error) Reset() {}
-
-func (it *Error) Close() error {
-	return it.err
-}
-
-func (it *Error) Stats() graph.IteratorStats {
-	return graph.IteratorStats{}
+func DumpStats(it Generic) StatsContainer {
+	var out StatsContainer
+	out.IteratorStats = it.Stats()
+	out.Type = reflect.TypeOf(it).String()
+	out.UID = it.UID()
+	for _, sub := range it.SubIterators() {
+		out.SubIts = append(out.SubIts, DumpStats(sub))
+	}
+	return out
 }

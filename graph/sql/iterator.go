@@ -20,10 +20,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
-	"github.com/cayleygraph/cayley/graph/shape"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query/shape"
 )
 
 var _ shape.Optimizer = (*QuadStore)(nil)
@@ -47,7 +47,7 @@ func (qs *QuadStore) Query(ctx context.Context, s Shape) (*sql.Rows, error) {
 	return rows, nil
 }
 
-var _ graph.Iterator = (*Iterator)(nil)
+var _ iterator.Iterator = (*Iterator)(nil)
 
 func (qs *QuadStore) NewIterator(s Select) *Iterator {
 	return &Iterator{
@@ -66,8 +66,8 @@ type Iterator struct {
 	cind map[quad.Direction]int
 
 	err    error
-	res    graph.Value
-	tags   map[string]graph.Value
+	res    values.Value
+	tags   map[string]values.Value
 	cursor *sql.Rows
 }
 
@@ -75,13 +75,13 @@ func (it *Iterator) UID() uint64 {
 	return it.uid
 }
 
-func (it *Iterator) TagResults(m map[string]graph.Value) {
+func (it *Iterator) TagResults(m map[string]values.Value) {
 	for tag, val := range it.tags {
 		m[tag] = val
 	}
 }
 
-func (it *Iterator) Result() graph.Value {
+func (it *Iterator) Result() values.Value {
 	return it.res
 }
 
@@ -120,7 +120,7 @@ func (it *Iterator) scanValue(r *sql.Rows) bool {
 		it.err = err
 		return false
 	}
-	it.tags = make(map[string]graph.Value)
+	it.tags = make(map[string]values.Value)
 	for i, name := range it.cols {
 		if !strings.Contains(name, tagPref) {
 			it.tags[name] = nodes[i].ValueHash
@@ -170,7 +170,7 @@ func (it *Iterator) NextPath(ctx context.Context) bool {
 	return false
 }
 
-func (it *Iterator) Contains(ctx context.Context, v graph.Value) bool {
+func (it *Iterator) Contains(ctx context.Context, v values.Value) bool {
 	it.ensureColumns()
 	sel := it.query
 	sel.Where = append([]Where{}, sel.Where...)
@@ -227,9 +227,9 @@ func (it *Iterator) Reset() {
 	}
 }
 
-func (it *Iterator) Stats() graph.IteratorStats {
+func (it *Iterator) Stats() iterator.IteratorStats {
 	sz, exact := it.Size()
-	return graph.IteratorStats{
+	return iterator.IteratorStats{
 		NextCost:     1,
 		ContainsCost: 10,
 		Size:         sz, ExactSize: exact,
@@ -266,11 +266,11 @@ func (it *Iterator) Size() (int64, bool) {
 	return n, true
 }
 
-func (it *Iterator) Optimize() (graph.Iterator, bool) {
+func (it *Iterator) Optimize() (iterator.Iterator, bool) {
 	return it, false
 }
 
-func (it *Iterator) SubIterators() []graph.Iterator {
+func (it *Iterator) SubIterators() []iterator.Iterator {
 	return nil
 }
 

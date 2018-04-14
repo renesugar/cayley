@@ -4,41 +4,41 @@ import (
 	"context"
 	"math"
 
-	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
 )
 
 // Recursive iterator takes a base iterator and a morphism to be applied recursively, for each result.
 type Recursive struct {
 	uid      uint64
-	subIt    graph.Iterator
+	subIt    Iterator
 	result   seenAt
-	runstats graph.IteratorStats
+	runstats IteratorStats
 	err      error
 
 	morphism      Morphism
 	seen          map[interface{}]seenAt
-	nextIt        graph.Iterator
+	nextIt        Iterator
 	depth         int
 	maxDepth      int
-	pathMap       map[interface{}][]map[string]graph.Value
+	pathMap       map[interface{}][]map[string]values.Value
 	pathIndex     int
-	containsValue graph.Value
+	containsValue values.Value
 	depthTags     []string
-	depthCache    []graph.Value
-	baseIt        graph.FixedIterator
+	depthCache    []values.Value
+	baseIt        FixedIterator
 }
 
 type seenAt struct {
 	depth int
-	val   graph.Value
+	val   values.Value
 }
 
-var _ graph.Iterator = &Recursive{}
+var _ Iterator = &Recursive{}
 
 var DefaultMaxRecursiveSteps = 50
 
-func NewRecursive(it graph.Iterator, morphism Morphism, maxDepth int) *Recursive {
+func NewRecursive(it Iterator, morphism Morphism, maxDepth int) *Recursive {
 	if maxDepth == 0 {
 		maxDepth = DefaultMaxRecursiveSteps
 	}
@@ -51,7 +51,7 @@ func NewRecursive(it graph.Iterator, morphism Morphism, maxDepth int) *Recursive
 		seen:          make(map[interface{}]seenAt),
 		nextIt:        &Null{},
 		baseIt:        NewFixed(),
-		pathMap:       make(map[interface{}][]map[string]graph.Value),
+		pathMap:       make(map[interface{}][]map[string]values.Value),
 		containsValue: nil,
 		maxDepth:      maxDepth,
 	}
@@ -67,7 +67,7 @@ func (it *Recursive) Reset() {
 	it.err = nil
 	it.subIt.Reset()
 	it.seen = make(map[interface{}]seenAt)
-	it.pathMap = make(map[interface{}][]map[string]graph.Value)
+	it.pathMap = make(map[interface{}][]map[string]values.Value)
 	it.containsValue = nil
 	it.pathIndex = 0
 	it.nextIt = &Null{}
@@ -79,13 +79,13 @@ func (it *Recursive) AddDepthTag(s string) {
 	it.depthTags = append(it.depthTags, s)
 }
 
-func (it *Recursive) TagResults(dst map[string]graph.Value) {
+func (it *Recursive) TagResults(dst map[string]values.Value) {
 	for _, tag := range it.depthTags {
-		dst[tag] = graph.PreFetched(quad.Int(it.result.depth))
+		dst[tag] = values.PreFetched(quad.Int(it.result.depth))
 	}
 
 	if it.containsValue != nil {
-		paths := it.pathMap[graph.ToKey(it.containsValue)]
+		paths := it.pathMap[values.ToKey(it.containsValue)]
 		if len(paths) != 0 {
 			for k, v := range paths[it.pathIndex] {
 				dst[k] = v
@@ -98,8 +98,8 @@ func (it *Recursive) TagResults(dst map[string]graph.Value) {
 	}
 }
 
-func (it *Recursive) SubIterators() []graph.Iterator {
-	return []graph.Iterator{it.subIt}
+func (it *Recursive) SubIterators() []Generic {
+	return []Generic{it.subIt}
 }
 
 func (it *Recursive) Next(ctx context.Context) bool {
@@ -108,12 +108,12 @@ func (it *Recursive) Next(ctx context.Context) bool {
 		for it.subIt.Next(ctx) {
 			res := it.subIt.Result()
 			it.depthCache = append(it.depthCache, it.subIt.Result())
-			tags := make(map[string]graph.Value)
+			tags := make(map[string]values.Value)
 			it.subIt.TagResults(tags)
-			key := graph.ToKey(res)
+			key := values.ToKey(res)
 			it.pathMap[key] = append(it.pathMap[key], tags)
 			for it.subIt.NextPath(ctx) {
-				tags := make(map[string]graph.Value)
+				tags := make(map[string]values.Value)
 				it.subIt.TagResults(tags)
 				it.pathMap[key] = append(it.pathMap[key], tags)
 			}
@@ -137,9 +137,9 @@ func (it *Recursive) Next(ctx context.Context) bool {
 			continue
 		}
 		val := it.nextIt.Result()
-		results := make(map[string]graph.Value)
+		results := make(map[string]values.Value)
 		it.nextIt.TagResults(results)
-		key := graph.ToKey(val)
+		key := values.ToKey(val)
 		if _, seen := it.seen[key]; !seen {
 			it.seen[key] = seenAt{
 				val:   results["__base_recursive"],
@@ -158,28 +158,28 @@ func (it *Recursive) Err() error {
 	return it.err
 }
 
-func (it *Recursive) Result() graph.Value {
+func (it *Recursive) Result() values.Value {
 	return it.result.val
 }
 
-func (it *Recursive) getBaseValue(val graph.Value) graph.Value {
+func (it *Recursive) getBaseValue(val values.Value) values.Value {
 	var at seenAt
 	var ok bool
-	if at, ok = it.seen[graph.ToKey(val)]; !ok {
+	if at, ok = it.seen[values.ToKey(val)]; !ok {
 		panic("trying to getBaseValue of something unseen")
 	}
 	for at.depth != 1 {
 		if at.depth == 0 {
 			panic("seen chain is broken")
 		}
-		at = it.seen[graph.ToKey(at.val)]
+		at = it.seen[values.ToKey(at.val)]
 	}
 	return at.val
 }
 
-func (it *Recursive) Contains(ctx context.Context, val graph.Value) bool {
+func (it *Recursive) Contains(ctx context.Context, val values.Value) bool {
 	it.pathIndex = 0
-	key := graph.ToKey(val)
+	key := values.ToKey(val)
 	if at, ok := it.seen[key]; ok {
 		it.containsValue = it.getBaseValue(val)
 		it.result.depth = at.depth
@@ -187,7 +187,7 @@ func (it *Recursive) Contains(ctx context.Context, val graph.Value) bool {
 		return true
 	}
 	for it.Next(ctx) {
-		if graph.ToKey(it.Result()) == key {
+		if values.ToKey(it.Result()) == key {
 			return true
 		}
 	}
@@ -195,7 +195,7 @@ func (it *Recursive) Contains(ctx context.Context, val graph.Value) bool {
 }
 
 func (it *Recursive) NextPath(ctx context.Context) bool {
-	if it.pathIndex+1 >= len(it.pathMap[graph.ToKey(it.containsValue)]) {
+	if it.pathIndex+1 >= len(it.pathMap[values.ToKey(it.containsValue)]) {
 		return false
 	}
 	it.pathIndex++
@@ -215,19 +215,11 @@ func (it *Recursive) Close() error {
 	return it.err
 }
 
-func (it *Recursive) Optimize() (graph.Iterator, bool) {
-	newIt, optimized := it.subIt.Optimize()
-	if optimized {
-		it.subIt = newIt
-	}
-	return it, false
-}
-
 func (it *Recursive) Size() (int64, bool) {
 	return it.Stats().Size, false
 }
 
-func (it *Recursive) Stats() graph.IteratorStats {
+func (it *Recursive) Stats() IteratorStats {
 	base := NewFixed()
 	base.Add(Int64Node(20))
 	fanoutit := it.morphism(base)
@@ -235,7 +227,7 @@ func (it *Recursive) Stats() graph.IteratorStats {
 	subitStats := it.subIt.Stats()
 
 	size := int64(math.Pow(float64(subitStats.Size*fanoutStats.Size), 5))
-	return graph.IteratorStats{
+	return IteratorStats{
 		NextCost:     subitStats.NextCost + fanoutStats.NextCost,
 		ContainsCost: (subitStats.NextCost+fanoutStats.NextCost)*(size/10) + subitStats.ContainsCost,
 		Size:         size,

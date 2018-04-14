@@ -26,10 +26,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/values"
 )
 
-var _ graph.Iterator = &Int64{}
+var _ Iterator = &Int64{}
 
 // An All iterator across a range of int64 values, from `max` to `min`.
 type Int64 struct {
@@ -38,7 +38,7 @@ type Int64 struct {
 	max, min int64
 	at       int64
 	result   int64
-	runstats graph.IteratorStats
+	runstats IteratorStats
 }
 
 type Int64Node int64
@@ -77,7 +77,7 @@ func (it *Int64) Close() error {
 	return nil
 }
 
-func (it *Int64) TagResults(dst map[string]graph.Value) {}
+func (it *Int64) TagResults(dst map[string]values.Value) {}
 
 func (it *Int64) String() string {
 	return fmt.Sprintf("Int64(%d-%d)", it.min, it.max)
@@ -103,14 +103,14 @@ func (it *Int64) Err() error {
 	return nil
 }
 
-func (it *Int64) toValue(v int64) graph.Value {
+func (it *Int64) toValue(v int64) values.Value {
 	if it.node {
 		return Int64Node(v)
 	}
 	return Int64Quad(v)
 }
 
-func (it *Int64) Result() graph.Value {
+func (it *Int64) Result() values.Value {
 	return it.toValue(it.result)
 }
 
@@ -119,7 +119,7 @@ func (it *Int64) NextPath(ctx context.Context) bool {
 }
 
 // No sub-iterators.
-func (it *Int64) SubIterators() []graph.Iterator {
+func (it *Int64) SubIterators() []Generic {
 	return nil
 }
 
@@ -130,7 +130,7 @@ func (it *Int64) Size() (int64, bool) {
 	return sz, true
 }
 
-func valToInt64(v graph.Value) int64 {
+func valToInt64(v values.Value) int64 {
 	if v, ok := v.(Int64Node); ok {
 		return int64(v)
 	}
@@ -139,7 +139,7 @@ func valToInt64(v graph.Value) int64 {
 
 // Contains() for an Int64 is merely seeing if the passed value is
 // within the range, assuming the value is an int64.
-func (it *Int64) Contains(ctx context.Context, tsv graph.Value) bool {
+func (it *Int64) Contains(ctx context.Context, tsv values.Value) bool {
 	it.runstats.Contains += 1
 	v := valToInt64(tsv)
 	if it.min <= v && v <= it.max {
@@ -150,13 +150,13 @@ func (it *Int64) Contains(ctx context.Context, tsv graph.Value) bool {
 }
 
 // There's nothing to optimize about this little iterator.
-func (it *Int64) Optimize() (graph.Iterator, bool) { return it, false }
+func (it *Int64) Optimize() (Iterator, bool) { return it, false }
 
 // Stats for an Int64 are simple. Super cheap to do any operation,
 // and as big as the range.
-func (it *Int64) Stats() graph.IteratorStats {
+func (it *Int64) Stats() IteratorStats {
 	s, exact := it.Size()
-	return graph.IteratorStats{
+	return IteratorStats{
 		ContainsCost: 1,
 		NextCost:     1,
 		Size:         s,

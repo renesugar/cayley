@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package iterator
+package giterator
 
 // Defines one of the base iterators, the HasA iterator. The HasA takes a
 // subiterator of links, and acts as an iterator of nodes in the given
@@ -39,10 +39,12 @@ import (
 
 	"github.com/cayleygraph/cayley/clog"
 	"github.com/cayleygraph/cayley/graph"
+	. "github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
 )
 
-var _ graph.Iterator = &HasA{}
+var _ Iterator = &HasA{}
 
 // A HasA consists of a reference back to the graph.QuadStore that it references,
 // a primary subiterator, a direction in which the quads for that subiterator point,
@@ -50,17 +52,17 @@ var _ graph.Iterator = &HasA{}
 type HasA struct {
 	uid       uint64
 	qs        graph.QuadIndexer
-	primaryIt graph.Iterator
+	primaryIt Iterator
 	dir       quad.Direction
-	resultIt  graph.Iterator
-	result    graph.Value
-	runstats  graph.IteratorStats
+	resultIt  Iterator
+	result    values.Value
+	runstats  IteratorStats
 	err       error
 }
 
 // Construct a new HasA iterator, given the quad subiterator, and the quad
 // direction for which it stands.
-func NewHasA(qs graph.QuadIndexer, subIt graph.Iterator, d quad.Direction) *HasA {
+func NewHasA(qs graph.QuadIndexer, subIt Iterator, d quad.Direction) *HasA {
 	return &HasA{
 		uid:       NextUID(),
 		qs:        qs,
@@ -74,8 +76,8 @@ func (it *HasA) UID() uint64 {
 }
 
 // Return our sole subiterator.
-func (it *HasA) SubIterators() []graph.Iterator {
-	return []graph.Iterator{it.primaryIt}
+func (it *HasA) SubIterators() []Iterator {
+	return []Iterator{it.primaryIt}
 }
 
 func (it *HasA) Reset() {
@@ -90,7 +92,7 @@ func (it *HasA) Direction() quad.Direction { return it.dir }
 
 // Pass the Optimize() call along to the subiterator. If it becomes Null,
 // then the HasA becomes Null (there are no quads that have any directions).
-func (it *HasA) Optimize() (graph.Iterator, bool) {
+func (it *HasA) Optimize() (Iterator, bool) {
 	newPrimary, changed := it.primaryIt.Optimize()
 	if changed {
 		it.primaryIt = newPrimary
@@ -102,7 +104,7 @@ func (it *HasA) Optimize() (graph.Iterator, bool) {
 }
 
 // Pass the TagResults down the chain.
-func (it *HasA) TagResults(dst map[string]graph.Value) {
+func (it *HasA) TagResults(dst map[string]values.Value) {
 	it.primaryIt.TagResults(dst)
 }
 
@@ -113,7 +115,7 @@ func (it *HasA) String() string {
 // Check a value against our internal iterator. In order to do this, we must first open a new
 // iterator of "quads that have `val` in our direction", given to us by the quad store,
 // and then Next() values out of that iterator and Contains() them against our subiterator.
-func (it *HasA) Contains(ctx context.Context, val graph.Value) bool {
+func (it *HasA) Contains(ctx context.Context, val values.Value) bool {
 	it.runstats.Contains += 1
 	if clog.V(4) {
 		clog.Infof("Id is %v", val)
@@ -122,7 +124,7 @@ func (it *HasA) Contains(ctx context.Context, val graph.Value) bool {
 	if it.resultIt != nil {
 		it.resultIt.Close()
 	}
-	it.resultIt = it.qs.QuadIterator(it.dir, val)
+	it.resultIt = it.qs.QuadIterator(it.dir, val).BuildIterator()
 	ok := it.NextContains(ctx)
 	if it.err != nil {
 		return false
@@ -204,7 +206,7 @@ func (it *HasA) Err() error {
 	return it.err
 }
 
-func (it *HasA) Result() graph.Value {
+func (it *HasA) Result() values.Value {
 	return it.result
 }
 
@@ -214,7 +216,7 @@ func (it *HasA) Result() graph.Value {
 // one sticks -- potentially expensive, depending on fanout. Size, however, is
 // potentially smaller. we know at worst it's the size of the subiterator, but
 // if there are many repeated values, it could be much smaller in totality.
-func (it *HasA) Stats() graph.IteratorStats {
+func (it *HasA) Stats() IteratorStats {
 	subitStats := it.primaryIt.Stats()
 	// TODO(barakmich): These should really come from the quadstore itself
 	// and be optimized.
@@ -222,7 +224,7 @@ func (it *HasA) Stats() graph.IteratorStats {
 	fanoutFactor := int64(30)
 	nextConstant := int64(2)
 	quadConstant := int64(1)
-	return graph.IteratorStats{
+	return IteratorStats{
 		NextCost:     quadConstant + subitStats.NextCost,
 		ContainsCost: (fanoutFactor * nextConstant) * subitStats.ContainsCost,
 		Size:         faninFactor * subitStats.Size,

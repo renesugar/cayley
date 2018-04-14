@@ -17,10 +17,11 @@ package path
 import (
 	"fmt"
 
-	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
-	"github.com/cayleygraph/cayley/graph/shape"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query/shape"
+	"github.com/cayleygraph/cayley/query/shape/gshape"
 )
 
 // join puts two iterators together by intersecting their result sets with an AND
@@ -29,10 +30,10 @@ import (
 func join(its ...shape.Shape) shape.Shape {
 	if len(its) == 0 {
 		return shape.Null{}
-	} else if _, ok := its[0].(shape.AllNodes); ok {
+	} else if _, ok := its[0].(gshape.AllNodes); ok {
 		return join(its[1:]...)
 	}
-	return shape.Intersect(its)
+	return gshape.Intersect(its)
 }
 
 // isMorphism represents all nodes passed in-- if there are none, this function
@@ -47,8 +48,8 @@ func isMorphism(nodes ...quad.Value) morphism {
 				// from here as in previous versions.
 				return in, ctx
 			}
-			s := shape.Lookup(nodes)
-			if _, ok := in.(shape.AllNodes); ok {
+			s := gshape.Lookup(nodes)
+			if _, ok := in.(gshape.AllNodes); ok {
 				return s, ctx
 			}
 			// Anything with fixedIterators will usually have a much
@@ -60,7 +61,7 @@ func isMorphism(nodes ...quad.Value) morphism {
 
 // isNodeMorphism represents all nodes passed in-- if there are none, this function
 // acts as a passthrough for the previous iterator.
-func isNodeMorphism(nodes ...graph.Value) morphism {
+func isNodeMorphism(nodes ...values.Value) morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return isNodeMorphism(nodes...), ctx },
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
@@ -78,11 +79,11 @@ func isNodeMorphism(nodes ...graph.Value) morphism {
 }
 
 // filterMorphism is the set of nodes that passes filters.
-func filterMorphism(filt []shape.ValueFilter) morphism {
+func filterMorphism(filt []gshape.ValueFilter) morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return filterMorphism(filt), ctx },
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return shape.AddFilters(in, filt...), ctx
+			return gshape.AddFilters(in, filt...), ctx
 		},
 	}
 }
@@ -92,9 +93,9 @@ func filterMorphism(filt []shape.ValueFilter) morphism {
 func hasMorphism(via interface{}, rev bool, nodes ...quad.Value) morphism {
 	var node shape.Shape
 	if len(nodes) == 0 {
-		node = shape.AllNodes{}
+		node = gshape.AllNodes{}
 	} else {
-		node = shape.Lookup(nodes)
+		node = gshape.Lookup(nodes)
 	}
 	return hasShapeMorphism(via, rev, node)
 }
@@ -105,16 +106,16 @@ func hasShapeMorphism(via interface{}, rev bool, nodes shape.Shape) morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return hasShapeMorphism(via, rev, nodes), ctx },
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return shape.HasLabels(in, buildVia(via), nodes, ctx.labelSet, rev), ctx
+			return gshape.HasLabels(in, buildVia(via), nodes, ctx.labelSet, rev), ctx
 		},
 	}
 }
 
 // hasFilterMorphism is the set of nodes that is reachable via either a *Path, a
-// single node.(string) or a list of nodes.([]string) and that passes provided filters.
-func hasFilterMorphism(via interface{}, rev bool, filt []shape.ValueFilter) morphism {
-	return hasShapeMorphism(via, rev, shape.Filter{
-		From:    shape.AllNodes{},
+// single node.(stringg) or a list of nodes.([]string) and that passes provided filters.
+func hasFilterMorphism(via interface{}, rev bool, filt []gshape.ValueFilter) morphism {
+	return hasShapeMorphism(via, rev, gshape.Filter{
+		From:    gshape.AllNodes{},
 		Filters: filt,
 	})
 }
@@ -135,7 +136,7 @@ func outMorphism(tags []string, via ...interface{}) morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return inMorphism(tags, via...), ctx },
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return shape.Out(in, buildVia(via...), ctx.labelSet, tags...), ctx
+			return gshape.Out(in, buildVia(via...), ctx.labelSet, tags...), ctx
 		},
 		tags: tags,
 	}
@@ -146,7 +147,7 @@ func inMorphism(tags []string, via ...interface{}) morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return outMorphism(tags, via...), ctx },
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return shape.In(in, buildVia(via...), ctx.labelSet, tags...), ctx
+			return gshape.In(in, buildVia(via...), ctx.labelSet, tags...), ctx
 		},
 		tags: tags,
 	}
@@ -158,8 +159,8 @@ func bothMorphism(tags []string, via ...interface{}) morphism {
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
 			via := buildVia(via...)
 			return shape.Union{
-				shape.In(in, via, ctx.labelSet, tags...),
-				shape.Out(in, via, ctx.labelSet, tags...),
+				gshape.In(in, via, ctx.labelSet, tags...),
+				gshape.Out(in, via, ctx.labelSet, tags...),
 			}, ctx
 		},
 		tags: tags,
@@ -196,7 +197,7 @@ func labelsMorphism() morphism {
 			panic("not implemented")
 		},
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return shape.Labels(in), ctx
+			return gshape.Labels(in), ctx
 		},
 	}
 }
@@ -209,7 +210,7 @@ func predicatesMorphism(isIn bool) morphism {
 			panic("not implemented: need a function from predicates to their associated edges")
 		},
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return shape.Predicates(in, isIn), ctx
+			return gshape.Predicates(in, isIn), ctx
 		},
 	}
 }
@@ -222,17 +223,17 @@ func savePredicatesMorphism(isIn bool, tag string) morphism {
 			return savePredicatesMorphism(isIn, tag), ctx
 		},
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return shape.SavePredicates(in, isIn, tag), ctx
+			return gshape.SavePredicates(in, isIn, tag), ctx
 		},
 	}
 }
 
 type iteratorShape struct {
-	it   graph.Iterator
+	it   iterator.Iterator
 	sent bool
 }
 
-func (s *iteratorShape) BuildIterator(qs graph.QuadStore) graph.Iterator {
+func (s *iteratorShape) BuildIterator() iterator.Iterator {
 	if s.sent {
 		return iterator.NewError(fmt.Errorf("iterator already used in query"))
 	}
@@ -245,7 +246,7 @@ func (s *iteratorShape) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 }
 
 // iteratorMorphism simply tacks the input iterator onto the chain.
-func iteratorMorphism(it graph.Iterator) morphism {
+func iteratorMorphism(it iterator.Iterator) morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return iteratorMorphism(it), ctx },
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
@@ -283,10 +284,10 @@ func followMorphism(p *Path) morphism {
 	}
 }
 
-type iteratorBuilder func(qs graph.QuadStore) graph.Iterator
+type iteratorBuilder func() iterator.Iterator
 
-func (s iteratorBuilder) BuildIterator(qs graph.QuadStore) graph.Iterator {
-	return s(qs)
+func (s iteratorBuilder) BuildIterator() iterator.Iterator {
+	return s()
 }
 func (s iteratorBuilder) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	return s, false
@@ -298,8 +299,8 @@ func followRecursiveMorphism(p *Path, maxDepth int, depthTags []string) morphism
 			return followRecursiveMorphism(p.Reverse(), maxDepth, depthTags), ctx
 		},
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return iteratorBuilder(func(qs graph.QuadStore) graph.Iterator {
-				in := in.BuildIterator(qs)
+			return iteratorBuilder(func() iterator.Iterator {
+				in := in.BuildIterator()
 				it := iterator.NewRecursive(in, p.MorphismFor(qs), maxDepth)
 				for _, s := range depthTags {
 					it.AddDepthTag(s)
@@ -315,7 +316,7 @@ func exceptMorphism(p *Path) morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return exceptMorphism(p), ctx },
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return join(in, shape.Except{From: shape.AllNodes{}, Exclude: p.Shape()}), ctx
+			return join(in, gshape.Except{From: gshape.AllNodes{}, Exclude: p.Shape()}), ctx
 		},
 	}
 }
@@ -334,7 +335,7 @@ func saveMorphism(via interface{}, tag string) morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return saveMorphism(via, tag), ctx },
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return shape.SaveViaLabels(in, buildVia(via), ctx.labelSet, tag, false, false), ctx
+			return gshape.SaveViaLabels(in, buildVia(via), ctx.labelSet, tag, false, false), ctx
 		},
 		tags: []string{tag},
 	}
@@ -344,7 +345,7 @@ func saveReverseMorphism(via interface{}, tag string) morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return saveReverseMorphism(via, tag), ctx },
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return shape.SaveVia(in, buildVia(via), tag, true, false), ctx
+			return gshape.SaveVia(in, buildVia(via), tag, true, false), ctx
 		},
 		tags: []string{tag},
 	}
@@ -354,7 +355,7 @@ func saveOptionalMorphism(via interface{}, tag string) morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return saveOptionalMorphism(via, tag), ctx },
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return shape.SaveVia(in, buildVia(via), tag, false, true), ctx
+			return gshape.SaveVia(in, buildVia(via), tag, false, true), ctx
 		},
 		tags: []string{tag},
 	}
@@ -364,7 +365,7 @@ func saveOptionalReverseMorphism(via interface{}, tag string) morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return saveOptionalReverseMorphism(via, tag), ctx },
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return shape.SaveVia(in, buildVia(via), tag, true, true), ctx
+			return gshape.SaveVia(in, buildVia(via), tag, true, true), ctx
 		},
 		tags: []string{tag},
 	}
@@ -372,18 +373,18 @@ func saveOptionalReverseMorphism(via interface{}, tag string) morphism {
 
 func buildVia(via ...interface{}) shape.Shape {
 	if len(via) == 0 {
-		return shape.AllNodes{}
+		return gshape.AllNodes{}
 	} else if len(via) == 1 {
 		v := via[0]
 		switch p := v.(type) {
 		case nil:
-			return shape.AllNodes{}
+			return gshape.AllNodes{}
 		case *Path:
 			return p.Shape()
 		case quad.Value:
-			return shape.Lookup{p}
+			return gshape.Lookup{p}
 		case []quad.Value:
-			return shape.Lookup(p)
+			return gshape.Lookup(p)
 		}
 	}
 	nodes := make([]quad.Value, 0, len(via))
@@ -394,7 +395,7 @@ func buildVia(via ...interface{}) shape.Shape {
 		}
 		nodes = append(nodes, qv)
 	}
-	return shape.Lookup(nodes)
+	return gshape.Lookup(nodes)
 }
 
 // skipMorphism will skip a number of values-- if there are none, this function
@@ -432,7 +433,7 @@ func countMorphism() morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return countMorphism(), ctx },
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return shape.Count{Values: in}, ctx
+			return gshape.Count{Values: in}, ctx
 		},
 	}
 }

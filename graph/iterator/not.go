@@ -3,23 +3,23 @@ package iterator
 import (
 	"context"
 
-	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/values"
 )
 
-var _ graph.Iterator = &Not{}
+var _ Iterator = &Not{}
 
 // Not iterator acts like a complement for the primary iterator.
 // It will return all the vertices which are not part of the primary iterator.
 type Not struct {
 	uid       uint64
-	primaryIt graph.Iterator
-	allIt     graph.Iterator
-	result    graph.Value
-	runstats  graph.IteratorStats
+	primaryIt Iterator
+	allIt     Iterator
+	result    values.Value
+	runstats  IteratorStats
 	err       error
 }
 
-func NewNot(primaryIt, allIt graph.Iterator) *Not {
+func NewNot(primaryIt, allIt Iterator) *Not {
 	return &Not{
 		uid:       NextUID(),
 		primaryIt: primaryIt,
@@ -38,7 +38,7 @@ func (it *Not) Reset() {
 	it.allIt.Reset()
 }
 
-func (it *Not) TagResults(dst map[string]graph.Value) {
+func (it *Not) TagResults(dst map[string]values.Value) {
 	if it.primaryIt != nil {
 		it.primaryIt.TagResults(dst)
 	}
@@ -47,8 +47,8 @@ func (it *Not) TagResults(dst map[string]graph.Value) {
 // SubIterators returns a slice of the sub iterators.
 // The first iterator is the primary iterator, for which the complement
 // is generated.
-func (it *Not) SubIterators() []graph.Iterator {
-	return []graph.Iterator{it.primaryIt, it.allIt}
+func (it *Not) SubIterators() []Generic {
+	return []Generic{it.primaryIt, it.allIt}
 }
 
 // Next advances the Not iterator. It returns whether there is another valid
@@ -72,14 +72,14 @@ func (it *Not) Err() error {
 	return it.err
 }
 
-func (it *Not) Result() graph.Value {
+func (it *Not) Result() values.Value {
 	return it.result
 }
 
 // Contains checks whether the passed value is part of the primary iterator's
 // complement. For a valid value, it updates the Result returned by the iterator
 // to the value itself.
-func (it *Not) Contains(ctx context.Context, val graph.Value) bool {
+func (it *Not) Contains(ctx context.Context, val values.Value) bool {
 	it.runstats.Contains += 1
 
 	if it.primaryIt.Contains(ctx, val) {
@@ -115,20 +115,10 @@ func (it *Not) Close() error {
 	return err
 }
 
-func (it *Not) Optimize() (graph.Iterator, bool) {
-	// TODO - consider wrapping the primaryIt with a MaterializeIt
-	optimizedPrimaryIt, optimized := it.primaryIt.Optimize()
-	if optimized {
-		it.primaryIt = optimizedPrimaryIt
-	}
-	it.primaryIt = NewMaterialize(it.primaryIt)
-	return it, false
-}
-
-func (it *Not) Stats() graph.IteratorStats {
+func (it *Not) Stats() IteratorStats {
 	primaryStats := it.primaryIt.Stats()
 	allStats := it.allIt.Stats()
-	return graph.IteratorStats{
+	return IteratorStats{
 		NextCost:     allStats.NextCost + primaryStats.ContainsCost,
 		ContainsCost: primaryStats.ContainsCost,
 		Size:         allStats.Size - primaryStats.Size,

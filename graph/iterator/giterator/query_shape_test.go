@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package iterator_test
+package giterator
 
 import (
 	"reflect"
@@ -45,7 +45,7 @@ func TestQueryShape(t *testing.T) {
 	}}
 
 	// Given a single linkage iterator's shape.
-	var hasa graph.Iterator = hasaWithTag(qs, qs, "tag", "cool")
+	var hasa Iterator = hasaWithTag(qs, qs, "tag", "cool")
 	hasa = Tag(hasa, "top")
 
 	shape := make(map[string]interface{})
@@ -90,11 +90,11 @@ func TestQueryShape(t *testing.T) {
 	// Given a name-of-an-and-iterator's shape.
 	andInternal := NewAnd()
 
-	var hasa1 graph.Iterator = hasaWithTag(qs, qs, "tag1", "cool")
+	var hasa1 Iterator = hasaWithTag(qs, qs, "tag1", "cool")
 	hasa1 = Tag(hasa1, "hasa1")
 	andInternal.AddSubIterator(hasa1)
 
-	var hasa2 graph.Iterator = hasaWithTag(qs, qs, "tag2", "fun")
+	var hasa2 Iterator = hasaWithTag(qs, qs, "tag2", "fun")
 	hasa2 = Tag(hasa2, "hasa2")
 	andInternal.AddSubIterator(hasa2)
 

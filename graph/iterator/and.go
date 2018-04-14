@@ -18,33 +18,33 @@ package iterator
 import (
 	"context"
 
-	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/values"
 )
 
-var _ graph.Iterator = &And{}
+var _ Iterator = &And{}
 
 // The And iterator. Consists of a number of subiterators, the primary of which will
 // be Next()ed if next is called.
 type And struct {
 	uid uint64
 
-	primary   graph.Iterator
-	sub       []graph.Iterator
-	opt       []graph.Iterator
+	primary   Iterator
+	sub       []Iterator
+	opt       []Iterator
 	optCheck  []bool
-	checkList []graph.Iterator
+	checkList []Iterator
 
-	runstats graph.IteratorStats
-	result   graph.Value
+	runstats IteratorStats
+	result   values.Value
 	err      error
 }
 
 // NewAnd creates an And iterator. `qs` is only required when needing a handle
 // for QuadStore-specific optimizations, otherwise nil is acceptable.
-func NewAnd(sub ...graph.Iterator) *And {
+func NewAnd(sub ...Iterator) *And {
 	it := &And{
 		uid: NextUID(),
-		sub: make([]graph.Iterator, 0, 20),
+		sub: make([]Iterator, 0, 20),
 	}
 	for _, s := range sub {
 		it.AddSubIterator(s)
@@ -68,7 +68,7 @@ func (it *And) Reset() {
 
 // An extended TagResults, as it needs to add it's own results and
 // recurse down it's subiterators.
-func (it *And) TagResults(dst map[string]graph.Value) {
+func (it *And) TagResults(dst map[string]values.Value) {
 	if it.primary != nil {
 		it.primary.TagResults(dst)
 	}
@@ -84,8 +84,8 @@ func (it *And) TagResults(dst map[string]graph.Value) {
 }
 
 // subIterators is like SubIterators but excludes optional.
-func (it *And) subIterators() []graph.Iterator {
-	iters := make([]graph.Iterator, 0, 1+len(it.sub))
+func (it *And) subIterators() []Iterator {
+	iters := make([]Iterator, 0, 1+len(it.sub))
 	if it.primary != nil {
 		iters = append(iters, it.primary)
 	}
@@ -95,13 +95,17 @@ func (it *And) subIterators() []graph.Iterator {
 }
 
 // Returns a slice of the subiterators, in order (primary iterator first).
-func (it *And) SubIterators() []graph.Iterator {
-	iters := make([]graph.Iterator, 0, 1+len(it.sub)+len(it.opt))
+func (it *And) SubIterators() []Generic {
+	iters := make([]Generic, 0, 1+len(it.sub)+len(it.opt))
 	if it.primary != nil {
 		iters = append(iters, it.primary)
 	}
-	iters = append(iters, it.sub...)
-	iters = append(iters, it.opt...)
+	for _, sit := range it.sub {
+		iters = append(iters, sit)
+	}
+	for _, sit := range it.opt {
+		iters = append(iters, sit)
+	}
 	return iters
 }
 
@@ -115,7 +119,7 @@ func (it *And) String() string {
 // important. Calling Optimize() is the way to change the order based on
 // subiterator statistics. Without Optimize(), the order added is the order
 // used.
-func (it *And) AddSubIterator(sub graph.Iterator) {
+func (it *And) AddSubIterator(sub Iterator) {
 	if it.primary == nil {
 		it.primary = sub
 		return
@@ -125,7 +129,7 @@ func (it *And) AddSubIterator(sub graph.Iterator) {
 
 // AddOptionalIterator adds an iterator that will only be Contain'ed and will not affect iteration results.
 // Only tags will be propagated from this iterator.
-func (it *And) AddOptionalIterator(sub graph.Iterator) *And {
+func (it *And) AddOptionalIterator(sub Iterator) *And {
 	it.opt = append(it.opt, sub)
 	it.optCheck = append(it.optCheck, false)
 	return it
@@ -168,18 +172,18 @@ func (it *And) Err() error {
 	return nil
 }
 
-func (it *And) Result() graph.Value {
+func (it *And) Result() values.Value {
 	return it.result
 }
 
-func (it *And) checkOpt(ctx context.Context, val graph.Value) {
+func (it *And) checkOpt(ctx context.Context, val values.Value) {
 	for i, sub := range it.opt {
 		// remember if we will need to call TagResults on it, nothing more
 		it.optCheck[i] = sub.Contains(ctx, val)
 	}
 }
 
-func (it *And) allContains(ctx context.Context, check []graph.Iterator, val graph.Value, prev graph.Value) bool {
+func (it *And) allContains(ctx context.Context, check []Iterator, val values.Value, prev values.Value) bool {
 	for i, sub := range check {
 		if !sub.Contains(ctx, val) {
 			if err := sub.Err(); err != nil {
@@ -211,17 +215,17 @@ func (it *And) allContains(ctx context.Context, check []graph.Iterator, val grap
 }
 
 // subContain checks a value against the non-primary iterators, in order.
-func (it *And) subContain(ctx context.Context, cur graph.Value, prev graph.Value) bool {
+func (it *And) subContain(ctx context.Context, cur values.Value, prev values.Value) bool {
 	return it.allContains(ctx, it.sub, cur, prev)
 }
 
 // checkContain is like subContain but uses optimized order of iterators stored in it.checkList, which includes primary.
-func (it *And) checkContain(ctx context.Context, cur graph.Value, prev graph.Value) bool {
+func (it *And) checkContain(ctx context.Context, cur values.Value, prev values.Value) bool {
 	return it.allContains(ctx, it.checkList, cur, prev)
 }
 
 // Check a value against the entire iterator, in order.
-func (it *And) Contains(ctx context.Context, val graph.Value) bool {
+func (it *And) Contains(ctx context.Context, val values.Value) bool {
 	it.runstats.Contains += 1
 	prev := it.result
 	if it.checkList != nil {

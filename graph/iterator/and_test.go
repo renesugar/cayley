@@ -19,8 +19,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/cayleygraph/cayley/graph"
 	. "github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/values"
 )
 
 // Make sure that tags work on the And.
@@ -28,7 +28,7 @@ func TestAndTag(t *testing.T) {
 	ctx := context.TODO()
 	fix1 := NewFixed(Int64Node(234))
 	fix2 := NewFixed(Int64Node(234))
-	var and graph.Iterator = NewAnd(Tag(fix1, "foo")).AddOptionalIterator(Tag(fix2, "baz"))
+	var and Iterator = NewAnd(Tag(fix1, "foo")).AddOptionalIterator(Tag(fix2, "baz"))
 	and = Tag(and, "bar")
 
 	if !and.Next(ctx) {
@@ -38,7 +38,7 @@ func TestAndTag(t *testing.T) {
 	if val.(Int64Node) != 234 {
 		t.Errorf("Unexpected value")
 	}
-	tags := make(map[string]graph.Value)
+	tags := make(map[string]values.Value)
 	and.TagResults(tags)
 	if tags["bar"].(Int64Node) != 234 {
 		t.Errorf("no bar tag")

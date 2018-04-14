@@ -3,20 +3,20 @@ package kv
 import (
 	"fmt"
 
-	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
 )
 
-func (qs *QuadStore) NodesAllIterator() graph.Iterator {
+func (qs *QuadStore) NodesAllIterator() iterator.Iterator {
 	return NewAllIterator(true, qs, nil)
 }
 
-func (qs *QuadStore) QuadsAllIterator() graph.Iterator {
+func (qs *QuadStore) QuadsAllIterator() iterator.Iterator {
 	return NewAllIterator(false, qs, nil)
 }
 
-func (qs *QuadStore) QuadIterator(dir quad.Direction, v graph.Value) graph.Iterator {
+func (qs *QuadStore) QuadIterator(dir quad.Direction, v values.Value) iterator.Iterator {
 	if v == nil {
 		return iterator.NewNull()
 	}

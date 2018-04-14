@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/values"
 )
 
-var _ graph.Iterator = &Limit{}
+var _ Iterator = &Limit{}
 
 // Limit iterator will stop iterating if certain a number of values were encountered.
 // Zero and negative limit values means no limit.
@@ -15,10 +15,10 @@ type Limit struct {
 	uid       uint64
 	limit     int64
 	count     int64
-	primaryIt graph.Iterator
+	primaryIt Iterator
 }
 
-func NewLimit(primaryIt graph.Iterator, limit int64) *Limit {
+func NewLimit(primaryIt Iterator, limit int64) *Limit {
 	return &Limit{
 		uid:       NextUID(),
 		limit:     limit,
@@ -36,13 +36,13 @@ func (it *Limit) Reset() {
 	it.primaryIt.Reset()
 }
 
-func (it *Limit) TagResults(dst map[string]graph.Value) {
+func (it *Limit) TagResults(dst map[string]values.Value) {
 	it.primaryIt.TagResults(dst)
 }
 
 // SubIterators returns a slice of the sub iterators.
-func (it *Limit) SubIterators() []graph.Iterator {
-	return []graph.Iterator{it.primaryIt}
+func (it *Limit) SubIterators() []Generic {
+	return []Generic{it.primaryIt}
 }
 
 // Next advances the Limit iterator. It will stop iteration if limit was reached.
@@ -61,11 +61,11 @@ func (it *Limit) Err() error {
 	return it.primaryIt.Err()
 }
 
-func (it *Limit) Result() graph.Value {
+func (it *Limit) Result() values.Value {
 	return it.primaryIt.Result()
 }
 
-func (it *Limit) Contains(ctx context.Context, val graph.Value) bool {
+func (it *Limit) Contains(ctx context.Context, val values.Value) bool {
 	return it.primaryIt.Contains(ctx, val) // FIXME(dennwc): limit is ignored in this case
 }
 
@@ -88,16 +88,7 @@ func (it *Limit) Close() error {
 	return it.primaryIt.Close()
 }
 
-func (it *Limit) Optimize() (graph.Iterator, bool) {
-	optimizedPrimaryIt, optimized := it.primaryIt.Optimize()
-	if it.limit <= 0 { // no limit
-		return optimizedPrimaryIt, true
-	}
-	it.primaryIt = optimizedPrimaryIt
-	return it, optimized
-}
-
-func (it *Limit) Stats() graph.IteratorStats {
+func (it *Limit) Stats() IteratorStats {
 	primaryStats := it.primaryIt.Stats()
 	if it.limit > 0 && primaryStats.Size > it.limit {
 		primaryStats.Size = it.limit

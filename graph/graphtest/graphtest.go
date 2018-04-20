@@ -320,7 +320,7 @@ func Test1K(t *testing.T, gen testutil.DatabaseFunc, c *Config) {
 }
 
 type ValueSizer interface {
-	SizeOf(values.Value) int64
+	SizeOf(values.Ref) int64
 }
 
 func TestSizes(t testing.TB, gen testutil.DatabaseFunc, conf *Config) {

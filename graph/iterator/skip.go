@@ -35,7 +35,7 @@ func (it *Skip) Reset() {
 	it.primaryIt.Reset()
 }
 
-func (it *Skip) TagResults(dst map[string]values.Value) {
+func (it *Skip) TagResults(dst map[string]values.Ref) {
 	it.primaryIt.TagResults(dst)
 }
 
@@ -62,11 +62,11 @@ func (it *Skip) Err() error {
 	return it.primaryIt.Err()
 }
 
-func (it *Skip) Result() values.Value {
+func (it *Skip) Result() values.Ref {
 	return it.primaryIt.Result()
 }
 
-func (it *Skip) Contains(ctx context.Context, val values.Value) bool {
+func (it *Skip) Contains(ctx context.Context, val values.Ref) bool {
 	return it.primaryIt.Contains(ctx, val) // FIXME(dennwc): will not skip anything in this case
 }
 

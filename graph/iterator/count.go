@@ -37,7 +37,7 @@ func (it *Count) Reset() {
 	it.it.Reset()
 }
 
-func (it *Count) TagResults(dst map[string]values.Value) {}
+func (it *Count) TagResults(dst map[string]values.Ref) {}
 
 // SubIterators returns a slice of the sub iterators.
 func (it *Count) SubIterators() []Generic {

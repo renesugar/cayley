@@ -77,7 +77,7 @@ func (it *Int64) Close() error {
 	return nil
 }
 
-func (it *Int64) TagResults(dst map[string]values.Value) {}
+func (it *Int64) TagResults(dst map[string]values.Ref) {}
 
 func (it *Int64) String() string {
 	return fmt.Sprintf("Int64(%d-%d)", it.min, it.max)
@@ -103,14 +103,14 @@ func (it *Int64) Err() error {
 	return nil
 }
 
-func (it *Int64) toValue(v int64) values.Value {
+func (it *Int64) toValue(v int64) values.Ref {
 	if it.node {
 		return Int64Node(v)
 	}
 	return Int64Quad(v)
 }
 
-func (it *Int64) Result() values.Value {
+func (it *Int64) Result() values.Ref {
 	return it.toValue(it.result)
 }
 
@@ -130,7 +130,7 @@ func (it *Int64) Size() (int64, bool) {
 	return sz, true
 }
 
-func valToInt64(v values.Value) int64 {
+func valToInt64(v values.Ref) int64 {
 	if v, ok := v.(Int64Node); ok {
 		return int64(v)
 	}
@@ -139,7 +139,7 @@ func valToInt64(v values.Value) int64 {
 
 // Contains() for an Int64 is merely seeing if the passed value is
 // within the range, assuming the value is an int64.
-func (it *Int64) Contains(ctx context.Context, tsv values.Value) bool {
+func (it *Int64) Contains(ctx context.Context, tsv values.Ref) bool {
 	it.runstats.Contains += 1
 	v := valToInt64(tsv)
 	if it.min <= v && v <= it.max {

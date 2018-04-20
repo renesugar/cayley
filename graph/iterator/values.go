@@ -25,24 +25,25 @@ import (
 	"fmt"
 
 	"github.com/cayleygraph/cayley/graph/values"
+	"github.com/cayleygraph/cayley/quad"
 )
 
-var _ Iterator = &Fixed{}
+var _ VIterator = &Values{}
 
-// A Fixed iterator consists of it's values, an index (where it is in the process of Next()ing) and
+// A Values iterator consists of it's values, an index (where it is in the process of Next()ing) and
 // an equality function.
-type Fixed struct {
+type Values struct {
 	uid       uint64
-	values    []values.Ref
+	values    []quad.Value
 	lastIndex int
-	result    values.Ref
+	result    quad.Value
 }
 
-// Creates a new Fixed iterator with a custom comparator.
-func NewFixed(vals ...values.Ref) *Fixed {
-	it := &Fixed{
+// Creates a new Values iterator with a custom comparator.
+func NewValues(vals ...quad.Value) *Values {
+	it := &Values{
 		uid:    NextUID(),
-		values: make([]values.Ref, 0, 20),
+		values: make([]quad.Value, 0, 20),
 	}
 	for _, v := range vals {
 		it.Add(v)
@@ -50,43 +51,43 @@ func NewFixed(vals ...values.Ref) *Fixed {
 	return it
 }
 
-func (it *Fixed) UID() uint64 {
+func (it *Values) UID() uint64 {
 	return it.uid
 }
 
-func (it *Fixed) Reset() {
+func (it *Values) Reset() {
 	it.lastIndex = 0
 }
 
-func (it *Fixed) Close() error {
+func (it *Values) Close() error {
 	return nil
 }
 
-func (it *Fixed) TagResults(dst map[string]values.Ref) {}
+func (it *Values) TagResults(dst map[string]values.Ref) {}
 
 // Add a value to the iterator. The array now contains this value.
 // TODO(barakmich): This ought to be a set someday, disallowing repeated values.
-func (it *Fixed) Add(v values.Ref) {
+func (it *Values) Add(v quad.Value) {
 	it.values = append(it.values, v)
 }
 
 // Values returns a list of values stored in iterator. Slice should not be modified.
-func (it *Fixed) Values() []values.Ref {
+func (it *Values) Values() []quad.Value {
 	return it.values
 }
 
-func (it *Fixed) String() string {
-	return fmt.Sprintf("Fixed(%v)", it.values)
+func (it *Values) String() string {
+	return fmt.Sprintf("Values(%v)", it.values)
 }
 
 // Check if the passed value is equal to one of the values stored in the iterator.
-func (it *Fixed) Contains(ctx context.Context, v values.Ref) bool {
+func (it *Values) Contains(ctx context.Context, v quad.Value) bool {
 	// Could be optimized by keeping it sorted or using a better datastructure.
 	// However, for fixed iterators, which are by definition kind of tiny, this
 	// isn't a big issue.
-	vk := values.ToKey(v)
+	vk := v
 	for _, x := range it.values {
-		if values.ToKey(x) == vk {
+		if x == vk {
 			it.result = x
 			return true
 		}
@@ -95,7 +96,7 @@ func (it *Fixed) Contains(ctx context.Context, v values.Ref) bool {
 }
 
 // Next advances the iterator.
-func (it *Fixed) Next(ctx context.Context) bool {
+func (it *Values) Next(ctx context.Context) bool {
 	if it.lastIndex == len(it.values) {
 		return false
 	}
@@ -105,42 +106,31 @@ func (it *Fixed) Next(ctx context.Context) bool {
 	return true
 }
 
-func (it *Fixed) Err() error {
+func (it *Values) Err() error {
 	return nil
 }
 
-func (it *Fixed) Result() values.Ref {
+func (it *Values) Result() quad.Value {
 	return it.result
 }
 
-func (it *Fixed) NextPath(ctx context.Context) bool {
+func (it *Values) NextPath(ctx context.Context) bool {
 	return false
 }
 
 // No sub-iterators.
-func (it *Fixed) SubIterators() []Generic {
+func (it *Values) SubIterators() []Generic {
 	return nil
 }
 
-// Optimize() for a Fixed iterator is simple. Returns a Null iterator if it's empty
-// (so that other iterators upstream can treat this as null) or there is no
-// optimization.
-func (it *Fixed) Optimize() (Iterator, bool) {
-	if len(it.values) == 1 && it.values[0] == nil {
-		return NewNull(), true
-	}
-
-	return it, false
-}
-
 // Size is the number of values stored.
-func (it *Fixed) Size() (int64, bool) {
+func (it *Values) Size() (int64, bool) {
 	return int64(len(it.values)), true
 }
 
 // As we right now have to scan the entire list, Next and Contains are linear with the
 // size. However, a better data structure could remove these limits.
-func (it *Fixed) Stats() IteratorStats {
+func (it *Values) Stats() IteratorStats {
 	s, exact := it.Size()
 	return IteratorStats{
 		ContainsCost: s,

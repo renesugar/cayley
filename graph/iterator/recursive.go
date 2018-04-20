@@ -21,17 +21,17 @@ type Recursive struct {
 	nextIt        Iterator
 	depth         int
 	maxDepth      int
-	pathMap       map[interface{}][]map[string]values.Value
+	pathMap       map[interface{}][]map[string]values.Ref
 	pathIndex     int
-	containsValue values.Value
+	containsValue values.Ref
 	depthTags     []string
-	depthCache    []values.Value
+	depthCache    []values.Ref
 	baseIt        FixedIterator
 }
 
 type seenAt struct {
 	depth int
-	val   values.Value
+	val   values.Ref
 }
 
 var _ Iterator = &Recursive{}
@@ -51,7 +51,7 @@ func NewRecursive(it Iterator, morphism Morphism, maxDepth int) *Recursive {
 		seen:          make(map[interface{}]seenAt),
 		nextIt:        &Null{},
 		baseIt:        NewFixed(),
-		pathMap:       make(map[interface{}][]map[string]values.Value),
+		pathMap:       make(map[interface{}][]map[string]values.Ref),
 		containsValue: nil,
 		maxDepth:      maxDepth,
 	}
@@ -67,7 +67,7 @@ func (it *Recursive) Reset() {
 	it.err = nil
 	it.subIt.Reset()
 	it.seen = make(map[interface{}]seenAt)
-	it.pathMap = make(map[interface{}][]map[string]values.Value)
+	it.pathMap = make(map[interface{}][]map[string]values.Ref)
 	it.containsValue = nil
 	it.pathIndex = 0
 	it.nextIt = &Null{}
@@ -79,7 +79,7 @@ func (it *Recursive) AddDepthTag(s string) {
 	it.depthTags = append(it.depthTags, s)
 }
 
-func (it *Recursive) TagResults(dst map[string]values.Value) {
+func (it *Recursive) TagResults(dst map[string]values.Ref) {
 	for _, tag := range it.depthTags {
 		dst[tag] = values.PreFetched(quad.Int(it.result.depth))
 	}
@@ -108,12 +108,12 @@ func (it *Recursive) Next(ctx context.Context) bool {
 		for it.subIt.Next(ctx) {
 			res := it.subIt.Result()
 			it.depthCache = append(it.depthCache, it.subIt.Result())
-			tags := make(map[string]values.Value)
+			tags := make(map[string]values.Ref)
 			it.subIt.TagResults(tags)
 			key := values.ToKey(res)
 			it.pathMap[key] = append(it.pathMap[key], tags)
 			for it.subIt.NextPath(ctx) {
-				tags := make(map[string]values.Value)
+				tags := make(map[string]values.Ref)
 				it.subIt.TagResults(tags)
 				it.pathMap[key] = append(it.pathMap[key], tags)
 			}
@@ -137,7 +137,7 @@ func (it *Recursive) Next(ctx context.Context) bool {
 			continue
 		}
 		val := it.nextIt.Result()
-		results := make(map[string]values.Value)
+		results := make(map[string]values.Ref)
 		it.nextIt.TagResults(results)
 		key := values.ToKey(val)
 		if _, seen := it.seen[key]; !seen {
@@ -158,11 +158,11 @@ func (it *Recursive) Err() error {
 	return it.err
 }
 
-func (it *Recursive) Result() values.Value {
+func (it *Recursive) Result() values.Ref {
 	return it.result.val
 }
 
-func (it *Recursive) getBaseValue(val values.Value) values.Value {
+func (it *Recursive) getBaseValue(val values.Ref) values.Ref {
 	var at seenAt
 	var ok bool
 	if at, ok = it.seen[values.ToKey(val)]; !ok {
@@ -177,7 +177,7 @@ func (it *Recursive) getBaseValue(val values.Value) values.Value {
 	return at.val
 }
 
-func (it *Recursive) Contains(ctx context.Context, val values.Value) bool {
+func (it *Recursive) Contains(ctx context.Context, val values.Ref) bool {
 	it.pathIndex = 0
 	key := values.ToKey(val)
 	if at, ok := it.seen[key]; ok {

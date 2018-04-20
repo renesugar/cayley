@@ -229,7 +229,7 @@ func (qs *QuadStore) horizon(ctx context.Context) int64 {
 	return h
 }
 
-func (qs *QuadStore) ValuesOf(ctx context.Context, vals []values.Value) ([]quad.Value, error) {
+func (qs *QuadStore) ValuesOf(ctx context.Context, vals []values.Ref) ([]quad.Value, error) {
 	out := make([]quad.Value, len(vals))
 	var (
 		inds []int
@@ -250,7 +250,7 @@ func (qs *QuadStore) ValuesOf(ctx context.Context, vals []values.Value) ([]quad.
 			inds = append(inds, i)
 			refs = append(refs, uint64(v))
 		default:
-			return out, fmt.Errorf("unknown type of values.Value; not meant for this quadstore. apparently a %#v", v)
+			return out, fmt.Errorf("unknown type of values.Ref; not meant for this quadstore. apparently a %#v", v)
 		}
 	}
 	if len(refs) == 0 {
@@ -274,9 +274,9 @@ func (qs *QuadStore) ValuesOf(ctx context.Context, vals []values.Value) ([]quad.
 	}
 	return out, last
 }
-func (qs *QuadStore) NameOf(v values.Value) quad.Value {
+func (qs *QuadStore) NameOf(v values.Ref) quad.Value {
 	ctx := context.TODO()
-	vals, err := qs.ValuesOf(ctx, []values.Value{v})
+	vals, err := qs.ValuesOf(ctx, []values.Ref{v})
 	if err != nil {
 		clog.Errorf("error getting NameOf %d: %s", v, err)
 		return nil
@@ -284,7 +284,7 @@ func (qs *QuadStore) NameOf(v values.Value) quad.Value {
 	return vals[0]
 }
 
-func (qs *QuadStore) Quad(k values.Value) quad.Quad {
+func (qs *QuadStore) Quad(k values.Ref) quad.Quad {
 	key, ok := k.(*proto.Primitive)
 	if !ok {
 		clog.Errorf("passed value was not a quad primitive: %T", k)
@@ -330,7 +330,7 @@ func (qs *QuadStore) getValFromLog(ctx context.Context, tx kv.Tx, k uint64) (qua
 	return pquads.UnmarshalValue(p.Value)
 }
 
-func (qs *QuadStore) ValueOf(s quad.Value) values.Value {
+func (qs *QuadStore) ValueOf(s quad.Value) values.Ref {
 	ctx := context.TODO()
 	var out Int64Value
 	_ = kv.View(qs.db, func(tx kv.Tx) error {
@@ -344,7 +344,7 @@ func (qs *QuadStore) ValueOf(s quad.Value) values.Value {
 	return out
 }
 
-func (qs *QuadStore) QuadDirection(val values.Value, d quad.Direction) values.Value {
+func (qs *QuadStore) QuadDirection(val values.Ref, d quad.Direction) values.Ref {
 	p, ok := val.(*proto.Primitive)
 	if !ok {
 		return nil

@@ -21,15 +21,15 @@ import (
 	"github.com/cayleygraph/cayley/graph/graphmock"
 	. "github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query/shape"
 )
 
 func TestLinksTo(t *testing.T) {
 	ctx := context.TODO()
 	qs := &graphmock.Oldstore{
 		Data: []string{1: "cool"},
-		Iter: NewFixed(),
+		Iter: shape.Fixed{Int64Quad(2)},
 	}
-	qs.Iter.(*Fixed).Add(Int64Quad(2))
 	fixed := NewFixed()
 	val := qs.ValueOf(quad.Raw("cool"))
 	if val.(Int64Node) != 1 {

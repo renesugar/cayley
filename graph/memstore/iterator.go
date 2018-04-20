@@ -62,7 +62,7 @@ func (it *Iterator) Reset() {
 	it.cur = nil
 }
 
-func (it *Iterator) TagResults(dst map[string]values.Value) {}
+func (it *Iterator) TagResults(dst map[string]values.Ref) {}
 
 func (it *Iterator) Close() error {
 	return nil
@@ -95,7 +95,7 @@ func (it *Iterator) Err() error {
 	return it.err
 }
 
-func (it *Iterator) Result() values.Value {
+func (it *Iterator) Result() values.Ref {
 	if it.cur == nil {
 		return nil
 	}
@@ -115,7 +115,7 @@ func (it *Iterator) Size() (int64, bool) {
 	return int64(it.tree.Len()), true
 }
 
-func (it *Iterator) Contains(ctx context.Context, v values.Value) bool {
+func (it *Iterator) Contains(ctx context.Context, v values.Ref) bool {
 	if v == nil {
 		return false
 	}

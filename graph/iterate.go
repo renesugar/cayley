@@ -102,7 +102,7 @@ func (c *IterateChain) On(qs QuadStore) *IterateChain {
 }
 
 // Each will run a provided callback for each result of the iterator.
-func (c *IterateChain) Each(fnc func(values.Value)) error {
+func (c *IterateChain) Each(fnc func(values.Ref)) error {
 	c.start()
 	defer c.end()
 	done := c.ctx.Done()
@@ -159,11 +159,11 @@ iteration:
 }
 
 // All will return all results of an iterator.
-func (c *IterateChain) All() ([]values.Value, error) {
+func (c *IterateChain) All() ([]values.Ref, error) {
 	c.start()
 	defer c.end()
 	done := c.ctx.Done()
-	var out []values.Value
+	var out []values.Ref
 iteration:
 	for c.next() {
 		select {
@@ -185,7 +185,7 @@ iteration:
 }
 
 // First will return a first result of an iterator. It returns nil if iterator is empty.
-func (c *IterateChain) First() (values.Value, error) {
+func (c *IterateChain) First() (values.Ref, error) {
 	c.start()
 	defer c.end()
 	if !c.next() {
@@ -197,7 +197,7 @@ func (c *IterateChain) First() (values.Value, error) {
 // Send will send each result of the iterator to the provided channel.
 //
 // Channel will NOT be closed when function returns.
-func (c *IterateChain) Send(out chan<- values.Value) error {
+func (c *IterateChain) Send(out chan<- values.Ref) error {
 	c.start()
 	defer c.end()
 	done := c.ctx.Done()
@@ -219,7 +219,7 @@ func (c *IterateChain) Send(out chan<- values.Value) error {
 }
 
 // TagEach will run a provided tag map callback for each result of the iterator.
-func (c *IterateChain) TagEach(fnc func(map[string]values.Value)) error {
+func (c *IterateChain) TagEach(fnc func(map[string]values.Ref)) error {
 	c.start()
 	defer c.end()
 	done := c.ctx.Done()
@@ -231,7 +231,7 @@ func (c *IterateChain) TagEach(fnc func(map[string]values.Value)) error {
 			return c.ctx.Err()
 		default:
 		}
-		tags := make(map[string]values.Value, mn)
+		tags := make(map[string]values.Ref, mn)
 		c.it.TagResults(tags)
 		if n := len(tags); n > mn {
 			mn = n
@@ -243,7 +243,7 @@ func (c *IterateChain) TagEach(fnc func(map[string]values.Value)) error {
 				return c.ctx.Err()
 			default:
 			}
-			tags := make(map[string]values.Value, mn)
+			tags := make(map[string]values.Ref, mn)
 			c.it.TagResults(tags)
 			if n := len(tags); n > mn {
 				mn = n
@@ -257,25 +257,16 @@ func (c *IterateChain) TagEach(fnc func(map[string]values.Value)) error {
 var errNoQuadStore = fmt.Errorf("no quad store in Iterate")
 
 // EachValue is an analog of Each, but it will additionally call NameOf
-// for each values.Value before passing it to a callback.
+// for each values.Ref before passing it to a callback.
 func (c *IterateChain) EachValue(qs QuadStore, fnc func(quad.Value)) error {
-	if qs != nil {
-		c.qs = qs
-	}
-	if c.qs == nil {
-		return errNoQuadStore
-	}
-	// TODO(dennwc): batch NameOf?
-	return c.Each(func(v values.Value) {
-		if nv := c.qs.NameOf(v); nv != nil {
-			fnc(nv)
-		}
+	return c.EachValuePair(qs, func(_ values.Ref, qv quad.Value) {
+		fnc(qv)
 	})
 }
 
 // EachValuePair is an analog of Each, but it will additionally call NameOf
-// for each values.Value before passing it to a callback. Original value will be passed as well.
-func (c *IterateChain) EachValuePair(qs QuadStore, fnc func(values.Value, quad.Value)) error {
+// for each values.Ref before passing it to a callback. Original value will be passed as well.
+func (c *IterateChain) EachValuePair(qs QuadStore, fnc func(values.Ref, quad.Value)) error {
 	if qs != nil {
 		c.qs = qs
 	}
@@ -283,15 +274,16 @@ func (c *IterateChain) EachValuePair(qs QuadStore, fnc func(values.Value, quad.V
 		return errNoQuadStore
 	}
 	// TODO(dennwc): batch NameOf?
-	return c.Each(func(v values.Value) {
-		if nv := c.qs.NameOf(v); nv != nil {
+	// TODO(dennwc): handle errors
+	return c.Each(func(v values.Ref) {
+		if nv, _ := ValueOf(c.ctx, c.qs, v); nv != nil {
 			fnc(v, nv)
 		}
 	})
 }
 
 // AllValues is an analog of All, but it will additionally call NameOf
-// for each values.Value before returning the results slice.
+// for each values.Ref before returning the results slice.
 func (c *IterateChain) AllValues(qs QuadStore) ([]quad.Value, error) {
 	var out []quad.Value
 	err := c.EachValue(qs, func(v quad.Value) {
@@ -312,12 +304,11 @@ func (c *IterateChain) FirstValue(qs QuadStore) (quad.Value, error) {
 	if err != nil || v == nil {
 		return nil, err
 	}
-	// TODO: return an error from NameOf once we have it exposed
-	return c.qs.NameOf(v), nil
+	return ValueOf(c.ctx, c.qs, v)
 }
 
 // SendValues is an analog of Send, but it will additionally call NameOf
-// for each values.Value before sending it to a channel.
+// for each values.Ref before sending it to a channel.
 func (c *IterateChain) SendValues(qs QuadStore, out chan<- quad.Value) error {
 	if qs != nil {
 		c.qs = qs
@@ -328,15 +319,17 @@ func (c *IterateChain) SendValues(qs QuadStore, out chan<- quad.Value) error {
 	c.start()
 	defer c.end()
 	done := c.ctx.Done()
-	send := func(v values.Value) error {
-		nv := c.qs.NameOf(c.it.Result())
-		if nv == nil {
+	send := func(v values.Ref) error {
+		nv, err := ValueOf(c.ctx, c.qs, c.it.Result())
+		if err != nil {
+			return err
+		} else if nv == nil {
 			return nil
 		}
 		select {
 		case <-done:
 			return c.ctx.Err()
-		case out <- c.qs.NameOf(c.it.Result()):
+		case out <- nv:
 		}
 		return nil
 	}
@@ -354,7 +347,7 @@ func (c *IterateChain) SendValues(qs QuadStore, out chan<- quad.Value) error {
 }
 
 // TagValues is an analog of TagEach, but it will additionally call NameOf
-// for each values.Value before passing the map to a callback.
+// for each values.Ref before passing the map to a callback.
 func (c *IterateChain) TagValues(qs QuadStore, fnc func(map[string]quad.Value)) error {
 	if qs != nil {
 		c.qs = qs
@@ -362,10 +355,13 @@ func (c *IterateChain) TagValues(qs QuadStore, fnc func(map[string]quad.Value)) 
 	if c.qs == nil {
 		return errNoQuadStore
 	}
-	return c.TagEach(func(m map[string]values.Value) {
+	return c.TagEach(func(m map[string]values.Ref) {
 		vm := make(map[string]quad.Value, len(m))
 		for k, v := range m {
-			vm[k] = c.qs.NameOf(v) // TODO(dennwc): batch NameOf?
+			// TODO(dennwc): batch NameOf?
+			// TODO(dennwc): handle errors
+			qv, _ := ValueOf(c.ctx, c.qs, v)
+			vm[k] = qv
 		}
 		fnc(vm)
 	})

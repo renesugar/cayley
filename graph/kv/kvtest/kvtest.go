@@ -97,10 +97,10 @@ func testOptimize(t *testing.T, gen DatabaseFunc, _ *Config) {
 	}
 
 	oldIt.Next(ctx)
-	oldResults := make(map[string]values.Value)
+	oldResults := make(map[string]values.Ref)
 	oldIt.TagResults(oldResults)
 	newIt.Next(ctx)
-	newResults := make(map[string]values.Value)
+	newResults := make(map[string]values.Ref)
 	newIt.TagResults(newResults)
 	if !reflect.DeepEqual(newResults, oldResults) {
 		t.Errorf("Discordant tag results, new:%v old:%v", newResults, oldResults)

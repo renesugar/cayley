@@ -408,7 +408,7 @@ func (qs *QuadStore) ApplyDeltas(deltas []graph.Delta, ignoreOpts graph.IgnoreOp
 	return nil
 }
 
-func asID(v values.Value) (int64, bool) {
+func asID(v values.Ref) (int64, bool) {
 	switch v := v.(type) {
 	case bnode:
 		return int64(v), true
@@ -419,7 +419,7 @@ func asID(v values.Value) (int64, bool) {
 	}
 }
 
-func (qs *QuadStore) quad(v values.Value) (q internalQuad, ok bool) {
+func (qs *QuadStore) quad(v values.Ref) (q internalQuad, ok bool) {
 	switch v := v.(type) {
 	case bnode:
 		p := qs.prim[int64(v)]
@@ -435,7 +435,7 @@ func (qs *QuadStore) quad(v values.Value) (q internalQuad, ok bool) {
 	return q, !q.Zero()
 }
 
-func (qs *QuadStore) Quad(index values.Value) quad.Quad {
+func (qs *QuadStore) Quad(index values.Ref) quad.Quad {
 	q, ok := qs.quad(index)
 	if !ok {
 		return quad.Quad{}
@@ -443,7 +443,7 @@ func (qs *QuadStore) Quad(index values.Value) quad.Quad {
 	return qs.lookupQuadDirs(q)
 }
 
-func (qs *QuadStore) QuadIterator(d quad.Direction, value values.Value) iterator.Iterator {
+func (qs *QuadStore) QuadIterator(d quad.Direction, value values.Ref) iterator.Iterator {
 	id, ok := asID(value)
 	if !ok {
 		return iterator.NewNull()
@@ -459,7 +459,7 @@ func (qs *QuadStore) Size() int64 {
 	return int64(len(qs.prim))
 }
 
-func (qs *QuadStore) ValueOf(name quad.Value) values.Value {
+func (qs *QuadStore) ValueOf(name quad.Value) values.Ref {
 	if name == nil {
 		return nil
 	}
@@ -470,7 +470,7 @@ func (qs *QuadStore) ValueOf(name quad.Value) values.Value {
 	return bnode(id)
 }
 
-func (qs *QuadStore) NameOf(v values.Value) quad.Value {
+func (qs *QuadStore) NameOf(v values.Ref) quad.Value {
 	if v == nil {
 		return nil
 	} else if v, ok := v.(graph.PreFetchedValue); ok {
@@ -490,7 +490,7 @@ func (qs *QuadStore) QuadsAllIterator() iterator.Iterator {
 	return newAllIterator(qs, false, qs.last)
 }
 
-func (qs *QuadStore) QuadDirection(val values.Value, d quad.Direction) values.Value {
+func (qs *QuadStore) QuadDirection(val values.Ref, d quad.Direction) values.Ref {
 	q, ok := qs.quad(val)
 	if !ok {
 		return nil

@@ -25,7 +25,7 @@ import (
 )
 
 // TODO(barakmich): Linkage is general enough that there are places we take
-//the combined arguments `quad.Direction, values.Value` that it may be worth
+//the combined arguments `quad.Direction, values.Ref` that it may be worth
 //converting these into Linkages. If nothing else, future indexed iterators may
 //benefit from the shared representation
 
@@ -33,18 +33,18 @@ import (
 // quad direction.
 type Linkage struct {
 	Dir   quad.Direction
-	Value values.Value
+	Value values.Ref
 }
 
-// TODO(barakmich): Helper functions as needed, eg, ValuesForDirection(quad.Direction) []Value
+// TODO(barakmich): Helper functions as needed, eg, ValuesForDirection(quad.Direction) []Ref
 
 // Tagger is an interface for iterators that can tag values. Tags are returned as a part of TagResults call.
 type Tagger interface {
 	Iterator
 	Tags() []string
-	FixedTags() map[string]values.Value
+	FixedTags() map[string]values.Ref
 	AddTags(tag ...string)
-	AddFixedTag(tag string, value values.Value)
+	AddFixedTag(tag string, value values.Ref)
 	CopyFromTagger(st Tagger)
 }
 
@@ -53,7 +53,7 @@ type Generic interface {
 	String() string
 
 	// Fills a tag-to-result-value map.
-	TagResults(map[string]values.Value)
+	TagResults(map[string]values.Ref)
 
 	// Next advances the iterator to the next value, which will then be available through
 	// the Result method. It returns false if no further advancement is possible, or if an
@@ -117,10 +117,10 @@ type Iterator interface {
 	Generic
 
 	// Returns the current result.
-	Result() values.Value
+	Result() values.Ref
 
 	// Contains returns whether the value is within the set held by the iterator.
-	Contains(ctx context.Context, v values.Value) bool
+	Contains(ctx context.Context, v values.Ref) bool
 }
 
 type VIterator interface {
@@ -183,7 +183,7 @@ func Height(it Generic, filter func(Generic) bool) int {
 // FixedIterator wraps iterators that are modifiable by addition of fixed value sets.
 type FixedIterator interface {
 	Iterator
-	Add(values.Value)
+	Add(values.Ref)
 }
 
 type IteratorStats struct {

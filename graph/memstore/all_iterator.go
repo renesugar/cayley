@@ -86,7 +86,7 @@ func (it *AllIterator) Next(ctx context.Context) bool {
 	return false
 }
 
-func (it *AllIterator) Contains(ctx context.Context, v values.Value) bool {
+func (it *AllIterator) Contains(ctx context.Context, v values.Ref) bool {
 	it.cur = nil
 	if it.done {
 		return false
@@ -105,7 +105,7 @@ func (it *AllIterator) Contains(ctx context.Context, v values.Value) bool {
 	it.cur = p
 	return true
 }
-func (it *AllIterator) Result() values.Value {
+func (it *AllIterator) Result() values.Ref {
 	if it.cur == nil {
 		return nil
 	}
@@ -122,7 +122,7 @@ func (it *AllIterator) Close() error {
 	return nil
 }
 
-func (it *AllIterator) TagResults(dst map[string]values.Value) {}
+func (it *AllIterator) TagResults(dst map[string]values.Ref) {}
 
 func (it *AllIterator) SubIterators() []iterator.Iterator   { return nil }
 func (it *AllIterator) Optimize() (iterator.Iterator, bool) { return it, false }

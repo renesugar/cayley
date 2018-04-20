@@ -35,7 +35,7 @@ type And struct {
 	checkList []Iterator
 
 	runstats IteratorStats
-	result   values.Value
+	result   values.Ref
 	err      error
 }
 
@@ -68,7 +68,7 @@ func (it *And) Reset() {
 
 // An extended TagResults, as it needs to add it's own results and
 // recurse down it's subiterators.
-func (it *And) TagResults(dst map[string]values.Value) {
+func (it *And) TagResults(dst map[string]values.Ref) {
 	if it.primary != nil {
 		it.primary.TagResults(dst)
 	}
@@ -172,18 +172,18 @@ func (it *And) Err() error {
 	return nil
 }
 
-func (it *And) Result() values.Value {
+func (it *And) Result() values.Ref {
 	return it.result
 }
 
-func (it *And) checkOpt(ctx context.Context, val values.Value) {
+func (it *And) checkOpt(ctx context.Context, val values.Ref) {
 	for i, sub := range it.opt {
 		// remember if we will need to call TagResults on it, nothing more
 		it.optCheck[i] = sub.Contains(ctx, val)
 	}
 }
 
-func (it *And) allContains(ctx context.Context, check []Iterator, val values.Value, prev values.Value) bool {
+func (it *And) allContains(ctx context.Context, check []Iterator, val values.Ref, prev values.Ref) bool {
 	for i, sub := range check {
 		if !sub.Contains(ctx, val) {
 			if err := sub.Err(); err != nil {
@@ -215,17 +215,17 @@ func (it *And) allContains(ctx context.Context, check []Iterator, val values.Val
 }
 
 // subContain checks a value against the non-primary iterators, in order.
-func (it *And) subContain(ctx context.Context, cur values.Value, prev values.Value) bool {
+func (it *And) subContain(ctx context.Context, cur values.Ref, prev values.Ref) bool {
 	return it.allContains(ctx, it.sub, cur, prev)
 }
 
 // checkContain is like subContain but uses optimized order of iterators stored in it.checkList, which includes primary.
-func (it *And) checkContain(ctx context.Context, cur values.Value, prev values.Value) bool {
+func (it *And) checkContain(ctx context.Context, cur values.Ref, prev values.Ref) bool {
 	return it.allContains(ctx, it.checkList, cur, prev)
 }
 
 // Check a value against the entire iterator, in order.
-func (it *And) Contains(ctx context.Context, val values.Value) bool {
+func (it *And) Contains(ctx context.Context, val values.Ref) bool {
 	it.runstats.Contains += 1
 	prev := it.result
 	if it.checkList != nil {

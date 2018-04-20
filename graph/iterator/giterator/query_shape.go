@@ -15,6 +15,7 @@
 package giterator
 
 import (
+	"context"
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/quad"
@@ -38,13 +39,13 @@ type Link struct {
 type queryShape struct {
 	nodes    []Node
 	links    []Link
-	qs       graph.Namer
+	qs       graph.Resolver
 	nodeID   int
 	hasaIDs  []int
 	hasaDirs []quad.Direction
 }
 
-func OutputQueryShapeForIterator(it iterator.Iterator, qs graph.Namer, outputMap map[string]interface{}) {
+func OutputQueryShapeForIterator(it iterator.Iterator, qs graph.Resolver, outputMap map[string]interface{}) {
 	s := &queryShape{
 		qs:     qs,
 		nodeID: 1,
@@ -107,11 +108,11 @@ func (s *queryShape) StealNode(left *Node, right *Node) {
 	}
 }
 
-func (s *queryShape) MakeNode(it iterator.Iterator) *Node {
+func (s *queryShape) MakeNode(it iterator.Generic) *Node {
 	n := Node{ID: s.nodeID}
 	return s.makeNode(&n, it)
 }
-func (s *queryShape) makeNode(n *Node, it iterator.Iterator) *Node {
+func (s *queryShape) makeNode(n *Node, it iterator.Generic) *Node {
 	if tg, ok := it.(iterator.Tagger); ok {
 		for _, tag := range tg.Tags() {
 			n.Tags = append(n.Tags, tag)
@@ -138,8 +139,9 @@ func (s *queryShape) makeNode(n *Node, it iterator.Iterator) *Node {
 		}
 	case *iterator.Fixed:
 		n.IsFixed = true
-		for _, v := range it.Values() {
-			n.Values = append(n.Values, s.qs.NameOf(v).String())
+		vals, _ := graph.ValuesOf(context.TODO(), s.qs, it.Values())
+		for _, v := range vals {
+			n.Values = append(n.Values, quad.StringOf(v))
 		}
 	case *HasA:
 		hasa := it

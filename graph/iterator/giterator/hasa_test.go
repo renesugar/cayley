@@ -19,7 +19,6 @@ import (
 	"errors"
 	"testing"
 
-	. "github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/quad"
 )
 

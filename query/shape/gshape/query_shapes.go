@@ -1,6 +1,7 @@
 package gshape
 
 import (
+	"fmt"
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/graph/iterator/giterator"
@@ -9,13 +10,29 @@ import (
 	"github.com/cayleygraph/cayley/query/shape"
 )
 
+var ErrNoQuadStore = fmt.Errorf("query should be bound to quad store")
+
+type Bindable interface {
+	shape.Shape
+	BindTo(qs graph.QuadStore) shape.Shape
+}
+
+var _ Bindable = AllNodes{}
+
 // AllNodes represents all nodes in QuadStore.
 type AllNodes struct{}
 
+func (s AllNodes) BindTo(qs graph.QuadStore) shape.Shape {
+	return qs.AllNodes()
+}
+
 func (s AllNodes) BuildIterator() iterator.Iterator {
-	return qs.NodesAllIterator()
+	return iterator.NewError(ErrNoQuadStore)
 }
 func (s AllNodes) Optimize(r shape.Optimizer) (shape.Shape, bool) {
+	if qs, ok := r.(graph.QuadStore); ok {
+		return s.BindTo(qs), true
+	}
 	if r != nil {
 		return r.OptimizeShape(s)
 	}
@@ -64,38 +81,22 @@ func (s Except) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	return s, opt
 }
 
+var _ Bindable = Lookup{}
+
 // Lookup is a static set of values that must be resolved to nodes by QuadStore.
 type Lookup []quad.Value
 
 func (s *Lookup) Add(v ...quad.Value) {
 	*s = append(*s, v...)
 }
-
-var _ valueResolver = graph.QuadStore(nil)
-
-type valueResolver interface {
-	ValueOf(v quad.Value) values.Value
+func (s Lookup) bindTo(qs graph.Resolver) shape.Shape {
+	return qs.ToRef(shape.Values(s))
 }
-
-func (s Lookup) resolve(qs valueResolver) shape.Shape {
-	// TODO: check if QS supports batch lookup
-	vals := make([]values.Value, 0, len(s))
-	for _, v := range s {
-		if gv := qs.ValueOf(v); gv != nil {
-			vals = append(vals, gv)
-		}
-	}
-	if len(vals) == 0 {
-		return nil
-	}
-	return shape.Fixed(vals)
+func (s Lookup) BindTo(qs graph.QuadStore) shape.Shape {
+	return s.bindTo(qs)
 }
 func (s Lookup) BuildIterator() iterator.Iterator {
-	f := s.resolve(qs)
-	if shape.IsNull(f) {
-		return iterator.NewNull()
-	}
-	return f.BuildIterator()
+	return iterator.NewError(ErrNoQuadStore)
 }
 func (s Lookup) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	if r == nil {
@@ -105,8 +106,8 @@ func (s Lookup) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	if opt {
 		return ns, true
 	}
-	if qs, ok := r.(valueResolver); ok {
-		ns, opt = s.resolve(qs), true
+	if qs, ok := r.(graph.Resolver); ok {
+		ns, opt = s.bindTo(qs), true
 	}
 	return ns, opt
 }
@@ -119,18 +120,36 @@ type QuadFilter struct {
 }
 
 // buildIterator is not exposed to force to use Quads and group filters together.
-func (s QuadFilter) buildIterator() iterator.Iterator {
+func (s QuadFilter) buildShape(qs graph.QuadIndexer) shape.Shape {
 	if s.Values == nil {
-		return iterator.NewNull()
+		return shape.Null{}
 	} else if v, ok := shape.One(s.Values); ok {
 		return qs.QuadIterator(s.Dir, v)
 	}
 	if s.Dir == quad.Any {
 		panic("direction is not set")
 	}
-	sub := s.Values.BuildIterator()
-	return giterator.NewLinksTo(qs, sub, s.Dir)
+	return linksTo{qs: qs, dir: s.Dir, values: s.Values}
 }
+
+type linksTo struct {
+	qs     graph.QuadIndexer
+	dir    quad.Direction
+	values shape.Shape
+}
+
+func (s linksTo) BuildIterator() iterator.Iterator {
+	sub := s.values.BuildIterator()
+	return giterator.NewLinksTo(s.qs, sub, s.dir)
+}
+
+func (s linksTo) Optimize(r shape.Optimizer) (shape.Shape, bool) {
+	var opt bool
+	s.values, opt = s.values.Optimize(r)
+	return s, opt
+}
+
+var _ Bindable = Quads{}
 
 // Quads is a selector of quads with a given set of node constraints. Empty or nil Quads is equivalent to AllQuads.
 // Equivalent to And(AllQuads,LinksTo*) iterator tree.
@@ -139,18 +158,22 @@ type Quads []QuadFilter
 func (s *Quads) Intersect(q ...QuadFilter) {
 	*s = append(*s, q...)
 }
-func (s Quads) BuildIterator() iterator.Iterator {
+func (s Quads) BindTo(qs graph.QuadStore) shape.Shape {
 	if len(s) == 0 {
-		return qs.QuadsAllIterator()
+		return qs.AllQuads()
 	}
-	its := make([]iterator.Iterator, 0, len(s))
-	for _, f := range s {
-		its = append(its, f.buildIterator(qs))
+	all := make(Intersect, 0, len(s))
+	for _, sub := range s {
+		ss := sub.buildShape(qs)
+		if shape.IsNull(ss) {
+			return shape.Null{}
+		}
+		all = append(all, ss)
 	}
-	if len(its) == 1 {
-		return its[0]
-	}
-	return iterator.NewAnd(its...)
+	return all
+}
+func (s Quads) BuildIterator() iterator.Iterator {
+	return iterator.NewError(ErrNoQuadStore)
 }
 func (s Quads) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	var opt bool
@@ -191,21 +214,42 @@ func (s Quads) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	return s, opt
 }
 
+type nodesFrom struct {
+	qs    graph.QuadIndexer
+	dir   quad.Direction
+	quads shape.Shape
+}
+
+func (s nodesFrom) BuildIterator() iterator.Iterator {
+	sub := s.quads.BuildIterator()
+	return giterator.NewHasA(s.qs, sub, s.dir)
+}
+
+func (s nodesFrom) Optimize(r shape.Optimizer) (shape.Shape, bool) {
+	var opt bool
+	s.quads, opt = s.quads.Optimize(r)
+	return s, opt
+}
+
+var _ Bindable = NodesFrom{}
+
 // NodesFrom extracts nodes on a given direction from source quads. Similar to HasA iterator.
 type NodesFrom struct {
 	Dir   quad.Direction
 	Quads shape.Shape
 }
 
-func (s NodesFrom) BuildIterator() iterator.Iterator {
+func (s NodesFrom) BindTo(qs graph.QuadStore) shape.Shape {
 	if shape.IsNull(s.Quads) {
-		return iterator.NewNull()
+		return shape.Null{}
 	}
-	sub := s.Quads.BuildIterator()
 	if s.Dir == quad.Any {
 		panic("direction is not set")
 	}
-	return giterator.NewHasA(qs, sub, s.Dir)
+	return nodesFrom{qs: qs, dir: s.Dir, quads: s.Quads}
+}
+func (s NodesFrom) BuildIterator() iterator.Iterator {
+	return iterator.NewError(ErrNoQuadStore)
 }
 func (s NodesFrom) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	if shape.IsNull(s.Quads) {
@@ -228,14 +272,14 @@ func (s NodesFrom) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	}
 	// collect all fixed tags and push them up the tree
 	var (
-		tags  map[string]values.Value
+		tags  map[string]values.Ref
 		nquad Quads
 	)
 	for i, f := range q {
 		if ft, ok := f.Values.(shape.FixedTags); ok {
 			if tags == nil {
 				// allocate map and clone quad filters
-				tags = make(map[string]values.Value)
+				tags = make(map[string]values.Ref)
 				nquad = make([]QuadFilter, len(q))
 				copy(nquad, q)
 				q = nquad
@@ -253,7 +297,7 @@ func (s NodesFrom) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	}
 	var (
 		// if quad filter contains one fixed value, it will be added to the map
-		filt map[quad.Direction]values.Value
+		filt map[quad.Direction]values.Ref
 		// if we see a Save from AllNodes, we will write it here, since it's a Save on quad direction
 		save map[quad.Direction][]string
 		// how many filters are recognized
@@ -262,7 +306,7 @@ func (s NodesFrom) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	for _, f := range q {
 		if v, ok := shape.One(f.Values); ok {
 			if filt == nil {
-				filt = make(map[quad.Direction]values.Value)
+				filt = make(map[quad.Direction]values.Ref)
 			}
 			if _, ok := filt[f.Dir]; ok {
 				return s, opt // just to be safe
@@ -303,12 +347,12 @@ type QuadsAction struct {
 	Size   int64 // approximate size; zero means undefined
 	Result quad.Direction
 	Save   map[quad.Direction][]string
-	Filter map[quad.Direction]values.Value
+	Filter map[quad.Direction]values.Ref
 }
 
-func (s *QuadsAction) SetFilter(d quad.Direction, v values.Value) {
+func (s *QuadsAction) SetFilter(d quad.Direction, v values.Ref) {
 	if s.Filter == nil {
-		s.Filter = make(map[quad.Direction]values.Value)
+		s.Filter = make(map[quad.Direction]values.Ref)
 	}
 	s.Filter[d] = v
 }
@@ -324,7 +368,7 @@ func (s QuadsAction) Clone() QuadsAction {
 		s.Save = nil
 	}
 	if n := len(s.Filter); n != 0 {
-		f2 := make(map[quad.Direction]values.Value, n)
+		f2 := make(map[quad.Direction]values.Ref, n)
 		for k, v := range s.Filter {
 			f2[k] = v
 		}
@@ -379,7 +423,7 @@ func (s QuadsAction) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 			if len(s.Save) == 0 {
 				return fx, true
 			}
-			ft := shape.FixedTags{On: fx, Tags: make(map[string]values.Value)}
+			ft := shape.FixedTags{On: fx, Tags: make(map[string]values.Ref)}
 			for d, tags := range s.Save {
 				for _, t := range tags {
 					ft.Tags[t] = q.Get(d)
@@ -393,4 +437,42 @@ func (s QuadsAction) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 		return shape.Materialize{Values: s, Size: int(sz)}, true
 	}
 	return s, true
+}
+
+func ToValues(qs giterator.Namer, refs shape.Shape) shape.ValShape {
+	return toValues{qs: qs, refs: refs}
+}
+
+type toValues struct {
+	qs   giterator.Namer
+	refs shape.Shape
+}
+
+func (s toValues) Optimize(r shape.Optimizer) (shape.ValShape, bool) {
+	var opt bool
+	s.refs, opt = s.refs.Optimize(r)
+	return s, opt
+}
+
+func (s toValues) BuildIterator() iterator.VIterator {
+	return giterator.NewRefToValue(s.qs, s.refs.BuildIterator())
+}
+
+func ToRefs(qs giterator.Namer, vals shape.ValShape) shape.Shape {
+	return toRefs{qs: qs, vals: vals}
+}
+
+type toRefs struct {
+	qs   giterator.Namer
+	vals shape.ValShape
+}
+
+func (s toRefs) Optimize(r shape.Optimizer) (shape.Shape, bool) {
+	var opt bool
+	s.vals, opt = s.vals.Optimize(r)
+	return s, opt
+}
+
+func (s toRefs) BuildIterator() iterator.Iterator {
+	return giterator.NewValueToRef(s.qs, s.vals.BuildIterator())
 }

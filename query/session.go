@@ -21,6 +21,7 @@ import (
 	"io"
 
 	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/values"
 )
 
 var ErrParseMore = errors.New("query: more input required")
@@ -41,13 +42,13 @@ type errResult struct {
 func (errResult) Result() interface{} { return nil }
 func (e errResult) Err() error        { return e.err }
 
-func TagMapResult(m map[string]graph.Value) Result {
+func TagMapResult(m map[string]values.Ref) Result {
 	return tagMap(m)
 }
 
-type tagMap map[string]graph.Value
+type tagMap map[string]values.Ref
 
-func (m tagMap) Result() interface{} { return map[string]graph.Value(m) }
+func (m tagMap) Result() interface{} { return map[string]values.Ref(m) }
 func (tagMap) Err() error            { return nil }
 
 type Session interface {

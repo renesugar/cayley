@@ -33,37 +33,57 @@ import (
 )
 
 type BatchQuadStore interface {
-	ValuesOf(ctx context.Context, vals []values.Value) ([]quad.Value, error)
+	ValuesOf(ctx context.Context, vals []values.Ref) ([]quad.Value, error)
 }
 
-func ValuesOf(ctx context.Context, qs Namer, vals []values.Value) ([]quad.Value, error) {
-	if bq, ok := qs.(BatchQuadStore); ok {
-		return bq.ValuesOf(ctx, vals)
+func ValuesOf(ctx context.Context, qs Resolver, vals []values.Ref) ([]quad.Value, error) {
+	it := qs.ToValue(shape.Fixed(vals)).BuildIterator()
+	defer it.Close()
+	out := make([]quad.Value, 0, len(vals))
+	for it.Next(ctx) {
+		out = append(out, it.Result())
 	}
-	out := make([]quad.Value, len(vals))
-	for i, v := range vals {
-		out[i] = qs.NameOf(v)
-	}
-	return out, nil
+	return out, it.Err()
 }
 
-type Namer interface {
+func ValueOf(ctx context.Context, qs Resolver, v values.Ref) (quad.Value, error) {
+	arr, err := ValuesOf(ctx, qs, []values.Ref{v})
+	if err != nil {
+		return nil, err
+	} else if len(arr) == 0 || arr[0] == nil {
+		return nil, nil
+	}
+	return arr[0], nil
+}
+
+func RefOf(ctx context.Context, qs QuadStore, v quad.Value) (values.Ref, error) {
+	it := qs.ToRef(shape.Values{v}).BuildIterator()
+	defer it.Close()
+	if !it.Next(ctx) {
+		return nil, it.Err()
+	}
+	return it.Result(), it.Err()
+}
+
+// TODO: require and implement Resolver
+
+type Resolver interface {
 	// Given a node ID, return the opaque token used by the QuadStore
 	// to represent that id.
-	ValueOf(quad.Value) values.Value
+	ToValue(s shape.Shape) shape.ValShape
 	// Given an opaque token, return the node that it represents.
-	NameOf(values.Value) quad.Value
+	ToRef(s shape.ValShape) shape.Shape
 }
 
 type QuadIndexer interface {
 	// Given an opaque token, returns the quad for that token from the store.
-	Quad(values.Value) quad.Quad
+	Quad(values.Ref) quad.Quad
 
 	// Given a direction and a token, creates an iterator of links which have
 	// that node token in that directional field.
-	QuadIterator(quad.Direction, values.Value) shape.Shape
+	QuadIterator(quad.Direction, values.Ref) shape.Shape
 
-	// TODO: QuadDirection should be an optional interface on Value
+	// TODO: QuadDirection should be an optional interface on Ref
 
 	// Convenience function for speed. Given a quad token and a direction
 	// return the node token for that direction. Sometimes, a QuadStore
@@ -74,7 +94,7 @@ type QuadIndexer interface {
 	//
 	//  qs.ValueOf(qs.Quad(id).Get(dir))
 	//
-	QuadDirection(id values.Value, d quad.Direction) values.Value
+	QuadDirection(id values.Ref, d quad.Direction) values.Ref
 }
 
 type Stats struct {
@@ -85,7 +105,7 @@ type Stats struct {
 }
 
 type QuadStore interface {
-	Namer
+	Resolver
 	QuadIndexer
 
 	// The only way in is through building a transaction, which

@@ -40,7 +40,7 @@ type Iterator struct {
 	links      []Linkage // used in Contains
 
 	iter   DocIterator
-	result values.Value
+	result values.Ref
 	size   int64
 	err    error
 }
@@ -100,7 +100,7 @@ func (it *Iterator) Close() error {
 	return nil
 }
 
-func (it *Iterator) TagResults(dst map[string]values.Value) {}
+func (it *Iterator) TagResults(dst map[string]values.Ref) {}
 
 func (it *Iterator) Next(ctx context.Context) bool {
 	if it.iter == nil {
@@ -140,7 +140,7 @@ func (it *Iterator) Err() error {
 	return it.err
 }
 
-func (it *Iterator) Result() values.Value {
+func (it *Iterator) Result() values.Ref {
 	return it.result
 }
 
@@ -152,7 +152,7 @@ func (it *Iterator) SubIterators() []iterator.Iterator {
 	return nil
 }
 
-func (it *Iterator) Contains(ctx context.Context, v values.Value) bool {
+func (it *Iterator) Contains(ctx context.Context, v values.Ref) bool {
 	if len(it.links) != 0 {
 		qh := v.(QuadHash)
 		for _, l := range it.links {

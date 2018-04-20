@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package shape
+package shape_test
 
 import (
 	"reflect"
@@ -20,52 +20,66 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/graphmock"
-	. "github.com/cayleygraph/cayley/graph/shape"
+	"github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query"
+	. "github.com/cayleygraph/cayley/query/shape"
+	"github.com/cayleygraph/cayley/query/shape/gshape"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func intVal(v int) graph.Value {
+func intVal(v int) values.Ref {
 	return graphmock.IntVal(v)
 }
 
 var _ Optimizer = ValLookup(nil)
 var _ graph.QuadStore = ValLookup(nil)
 
-type ValLookup map[quad.Value]graph.Value
+type ValLookup map[quad.Value]values.Ref
 
 func (qs ValLookup) OptimizeShape(s Shape) (Shape, bool) {
 	return s, false // emulate dumb quad store
 }
-func (qs ValLookup) ValueOf(v quad.Value) graph.Value {
+func (qs ValLookup) OptimizeExpr(s ValShape) (ValShape, bool) {
+	return s, false // emulate dumb quad store
+}
+func (qs ValLookup) ValueOf(v quad.Value) values.Ref {
 	return qs[v]
+}
+func (qs ValLookup) ToValue(s Shape) ValShape {
+	return gshape.ToValues(qs, s)
+}
+func (qs ValLookup) ToRef(s ValShape) Shape {
+	return gshape.ToRefs(qs, s)
 }
 func (ValLookup) ApplyDeltas(_ []graph.Delta, _ graph.IgnoreOpts) error {
 	panic("not implemented")
 }
-func (ValLookup) Quad(_ graph.Value) quad.Quad {
+func (ValLookup) Quad(_ values.Ref) quad.Quad {
 	panic("not implemented")
 }
-func (ValLookup) QuadIterator(_ quad.Direction, _ graph.Value) graph.Iterator {
+func (ValLookup) QuadIterator(_ quad.Direction, _ values.Ref) Shape {
+	return fakeAll{}
+}
+func (ValLookup) AllNodes() Shape {
+	return fakeAll{}
+}
+
+func (ValLookup) AllQuads() Shape {
+	return fakeAll{}
+}
+func (ValLookup) NameOf(_ values.Ref) quad.Value {
 	panic("not implemented")
 }
-func (ValLookup) NodesAllIterator() graph.Iterator {
-	panic("not implemented")
-}
-func (ValLookup) QuadsAllIterator() graph.Iterator {
-	panic("not implemented")
-}
-func (ValLookup) NameOf(_ graph.Value) quad.Value {
-	panic("not implemented")
-}
-func (ValLookup) Size() int64 {
+func (ValLookup) Stats() graph.Stats {
 	panic("not implemented")
 }
 func (ValLookup) Close() error {
 	panic("not implemented")
 }
-func (ValLookup) QuadDirection(_ graph.Value, _ quad.Direction) graph.Value {
+func (ValLookup) QuadDirection(_ values.Ref, _ quad.Direction) values.Ref {
 	panic("not implemented")
 }
 func (ValLookup) Type() string {
@@ -73,14 +87,24 @@ func (ValLookup) Type() string {
 }
 
 func emptySet() Shape {
-	return NodesFrom{
+	return gshape.NodesFrom{
 		Dir: quad.Predicate,
-		Quads: Intersect{Quads{
+		Quads: gshape.Intersect{gshape.Quads{
 			{Dir: quad.Object,
-				Values: Lookup{quad.IRI("not-existent")},
+				Values: gshape.Lookup{quad.IRI("not-existent")},
 			},
 		}},
 	}
+}
+
+type fakeAll struct{}
+
+func (fakeAll) BuildIterator() iterator.Iterator {
+	panic("implement me")
+}
+
+func (s fakeAll) Optimize(r Optimizer) (Shape, bool) {
+	return s, false
 }
 
 var optimizeCases = []struct {
@@ -92,9 +116,9 @@ var optimizeCases = []struct {
 }{
 	{
 		name:   "all",
-		from:   AllNodes{},
+		from:   fakeAll{},
 		opt:    false,
-		expect: AllNodes{},
+		expect: fakeAll{},
 	},
 	{
 		name: "page min limit",
@@ -102,13 +126,13 @@ var optimizeCases = []struct {
 			Limit: 5,
 			From: Page{
 				Limit: 3,
-				From:  AllNodes{},
+				From:  fakeAll{},
 			},
 		},
 		opt: true,
 		expect: Page{
 			Limit: 3,
-			From:  AllNodes{},
+			From:  fakeAll{},
 		},
 	},
 	{
@@ -117,27 +141,27 @@ var optimizeCases = []struct {
 			Skip: 3, Limit: 3,
 			From: Page{
 				Skip: 2, Limit: 5,
-				From: AllNodes{},
+				From: fakeAll{},
 			},
 		},
 		opt: true,
 		expect: Page{
 			Skip: 5, Limit: 2,
-			From: AllNodes{},
+			From: fakeAll{},
 		},
 	},
 	{
 		name: "intersect quads and lookup resolution",
-		from: Intersect{
-			Quads{
-				{Dir: quad.Subject, Values: Lookup{quad.IRI("bob")}},
+		from: gshape.Intersect{
+			gshape.Quads{
+				{Dir: quad.Subject, Values: gshape.Lookup{quad.IRI("bob")}},
 			},
-			Quads{
-				{Dir: quad.Object, Values: Lookup{quad.IRI("alice")}},
+			gshape.Quads{
+				{Dir: quad.Object, Values: gshape.Lookup{quad.IRI("alice")}},
 			},
 		},
 		opt: true,
-		expect: Quads{
+		expect: gshape.Quads{
 			{Dir: quad.Subject, Values: Fixed{intVal(1)}},
 			{Dir: quad.Object, Values: Fixed{intVal(2)}},
 		},
@@ -148,19 +172,19 @@ var optimizeCases = []struct {
 	},
 	{
 		name: "intersect nodes, remove all, join intersects",
-		from: Intersect{
-			AllNodes{},
-			NodesFrom{Dir: quad.Subject, Quads: Quads{}},
-			Intersect{
-				Lookup{quad.IRI("alice")},
-				Unique{NodesFrom{Dir: quad.Object, Quads: Quads{}}},
+		from: gshape.Intersect{
+			fakeAll{},
+			gshape.NodesFrom{Dir: quad.Subject, Quads: gshape.Quads{}},
+			gshape.Intersect{
+				gshape.Lookup{quad.IRI("alice")},
+				Unique{gshape.NodesFrom{Dir: quad.Object, Quads: gshape.Quads{}}},
 			},
 		},
 		opt: true,
-		expect: Intersect{
+		expect: gshape.Intersect{
 			Fixed{intVal(1)},
-			QuadsAction{Result: quad.Subject},
-			Unique{QuadsAction{Result: quad.Object}},
+			gshape.QuadsAction{Result: quad.Subject},
+			Unique{gshape.QuadsAction{Result: quad.Object}},
 		},
 		qs: ValLookup{
 			quad.IRI("alice"): intVal(1),
@@ -168,25 +192,25 @@ var optimizeCases = []struct {
 	},
 	{
 		name: "push Save out of intersect",
-		from: Intersect{
+		from: gshape.Intersect{
 			Save{
 				Tags: []string{"id"},
-				From: NodesFrom{Dir: quad.Subject, Quads: Quads{}},
+				From: gshape.NodesFrom{Dir: quad.Subject, Quads: gshape.Quads{}},
 			},
-			Unique{NodesFrom{Dir: quad.Object, Quads: Quads{}}},
+			Unique{gshape.NodesFrom{Dir: quad.Object, Quads: gshape.Quads{}}},
 		},
 		opt: true,
 		expect: Save{
 			Tags: []string{"id"},
-			From: Intersect{
-				QuadsAction{Result: quad.Subject},
-				Unique{QuadsAction{Result: quad.Object}},
+			From: gshape.Intersect{
+				gshape.QuadsAction{Result: quad.Subject},
+				Unique{gshape.QuadsAction{Result: quad.Object}},
 			},
 		},
 	},
 	{
 		name: "collapse empty set",
-		from: Intersect{Quads{
+		from: gshape.Intersect{gshape.Quads{
 			{Dir: quad.Subject, Values: Union{
 				Unique{emptySet()},
 			}},
@@ -196,15 +220,15 @@ var optimizeCases = []struct {
 	},
 	{ // remove "all nodes" in intersect, merge Fixed and order them first
 		name: "remove all in intersect and reorder",
-		from: Intersect{
-			AllNodes{},
+		from: gshape.Intersect{
+			fakeAll{},
 			Fixed{intVal(1), intVal(2)},
-			Save{From: AllNodes{}, Tags: []string{"all"}},
+			Save{From: fakeAll{}, Tags: []string{"all"}},
 			Fixed{intVal(2)},
 		},
 		opt: true,
 		expect: Save{
-			From: Intersect{
+			From: gshape.Intersect{
 				Fixed{intVal(1), intVal(2)},
 				Fixed{intVal(2)},
 			},
@@ -213,9 +237,9 @@ var optimizeCases = []struct {
 	},
 	{
 		name: "remove HasA-LinksTo pairs",
-		from: NodesFrom{
+		from: gshape.NodesFrom{
 			Dir: quad.Subject,
-			Quads: Quads{{
+			Quads: gshape.Quads{{
 				Dir:    quad.Subject,
 				Values: Fixed{intVal(1)},
 			}},
@@ -225,14 +249,14 @@ var optimizeCases = []struct {
 	},
 	{ // pop fixed tags to the top of the tree
 		name: "pop fixed tags",
-		from: NodesFrom{Dir: quad.Subject, Quads: Quads{
-			QuadFilter{Dir: quad.Predicate, Values: Intersect{
+		from: gshape.NodesFrom{Dir: quad.Subject, Quads: gshape.Quads{
+			gshape.QuadFilter{Dir: quad.Predicate, Values: gshape.Intersect{
 				FixedTags{
-					Tags: map[string]graph.Value{"foo": intVal(1)},
-					On: NodesFrom{Dir: quad.Subject,
-						Quads: Quads{
-							QuadFilter{Dir: quad.Object, Values: FixedTags{
-								Tags: map[string]graph.Value{"bar": intVal(2)},
+					Tags: map[string]values.Ref{"foo": intVal(1)},
+					On: gshape.NodesFrom{Dir: quad.Subject,
+						Quads: gshape.Quads{
+							gshape.QuadFilter{Dir: quad.Object, Values: FixedTags{
+								Tags: map[string]values.Ref{"bar": intVal(2)},
 								On:   Fixed{intVal(3)},
 							}},
 						},
@@ -242,21 +266,21 @@ var optimizeCases = []struct {
 		}},
 		opt: true,
 		expect: FixedTags{
-			Tags: map[string]graph.Value{"foo": intVal(1), "bar": intVal(2)},
-			On: NodesFrom{Dir: quad.Subject, Quads: Quads{
-				QuadFilter{Dir: quad.Predicate, Values: QuadsAction{
+			Tags: map[string]values.Ref{"foo": intVal(1), "bar": intVal(2)},
+			On: gshape.NodesFrom{Dir: quad.Subject, Quads: gshape.Quads{
+				gshape.QuadFilter{Dir: quad.Predicate, Values: gshape.QuadsAction{
 					Result: quad.Subject,
-					Filter: map[quad.Direction]graph.Value{quad.Object: intVal(3)},
+					Filter: map[quad.Direction]values.Ref{quad.Object: intVal(3)},
 				}},
 			}},
 		},
 	},
 	{ // remove optional empty set from intersect
 		name: "remove optional empty set",
-		from: IntersectOptional{
-			Intersect: Intersect{
-				AllNodes{},
-				Save{From: AllNodes{}, Tags: []string{"all"}},
+		from: gshape.IntersectOptional{
+			Intersect: gshape.Intersect{
+				fakeAll{},
+				Save{From: fakeAll{}, Tags: []string{"all"}},
 				Fixed{intVal(2)},
 			},
 			Optional: []Shape{
@@ -274,17 +298,17 @@ var optimizeCases = []struct {
 	},
 	{ // push fixed node from intersect into nodes.quads
 		name: "push fixed into nodes.quads",
-		from: Intersect{
+		from: gshape.Intersect{
 			Fixed{intVal(1)},
-			NodesFrom{
+			gshape.NodesFrom{
 				Dir: quad.Subject,
-				Quads: Quads{
+				Quads: gshape.Quads{
 					{Dir: quad.Predicate, Values: Fixed{intVal(2)}},
 					{
 						Dir: quad.Object,
-						Values: NodesFrom{
+						Values: gshape.NodesFrom{
 							Dir: quad.Subject,
-							Quads: Quads{
+							Quads: gshape.Quads{
 								{Dir: quad.Predicate, Values: Fixed{intVal(2)}},
 							},
 						},
@@ -293,16 +317,16 @@ var optimizeCases = []struct {
 			},
 		},
 		opt: true,
-		expect: NodesFrom{
+		expect: gshape.NodesFrom{
 			Dir: quad.Subject,
-			Quads: Quads{
+			Quads: gshape.Quads{
 				{Dir: quad.Subject, Values: Fixed{intVal(1)}},
 				{Dir: quad.Predicate, Values: Fixed{intVal(2)}},
 				{
 					Dir: quad.Object,
-					Values: QuadsAction{
+					Values: gshape.QuadsAction{
 						Result: quad.Subject,
-						Filter: map[quad.Direction]graph.Value{
+						Filter: map[quad.Direction]values.Ref{
 							quad.Predicate: intVal(2),
 						},
 					},
@@ -316,7 +340,7 @@ func TestOptimize(t *testing.T) {
 	for _, c := range optimizeCases {
 		t.Run(c.name, func(t *testing.T) {
 			qs := c.qs
-			got, opt := Optimize(c.from, qs)
+			got, opt := query.Optimize(c.from, qs)
 			assert.Equal(t, c.expect, got)
 			assert.Equal(t, c.opt, opt)
 		})
@@ -324,16 +348,16 @@ func TestOptimize(t *testing.T) {
 }
 
 func TestWalk(t *testing.T) {
-	var s Shape = NodesFrom{
+	var s Shape = gshape.NodesFrom{
 		Dir: quad.Subject,
-		Quads: Quads{
+		Quads: gshape.Quads{
 			{Dir: quad.Subject, Values: Fixed{intVal(1)}},
 			{Dir: quad.Predicate, Values: Fixed{intVal(2)}},
 			{
 				Dir: quad.Object,
-				Values: QuadsAction{
+				Values: gshape.QuadsAction{
 					Result: quad.Subject,
-					Filter: map[quad.Direction]graph.Value{
+					Filter: map[quad.Direction]values.Ref{
 						quad.Predicate: intVal(2),
 					},
 				},
@@ -346,10 +370,10 @@ func TestWalk(t *testing.T) {
 		return true
 	})
 	require.Equal(t, []string{
-		"shape.NodesFrom",
-		"shape.Quads",
+		"gshape.NodesFrom",
+		"gshape.Quads",
 		"shape.Fixed",
 		"shape.Fixed",
-		"shape.QuadsAction",
+		"gshape.QuadsAction",
 	}, types)
 }

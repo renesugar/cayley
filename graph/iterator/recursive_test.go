@@ -92,7 +92,7 @@ func TestRecursiveContains(t *testing.T) {
 func TestRecursiveNextPath(t *testing.T) {
 	ctx := context.TODO()
 	qs := rec_test_qs
-	start := qs.NodesAllIterator()
+	start := qs.AllNodes().BuildIterator()
 	start = Tag(start, "person")
 	it := singleHop(qs, "follows")(start)
 	and := NewAnd()
@@ -105,11 +105,11 @@ func TestRecursiveNextPath(t *testing.T) {
 	expected := []string{"fred", "fred", "fred", "fred", "greg", "greg", "greg", "greg"}
 	var got []string
 	for r.Next(ctx) {
-		res := make(map[string]values.Value)
+		res := make(map[string]values.Ref)
 		r.TagResults(res)
 		got = append(got, quad.ToString(qs.NameOf(res["person"])))
 		for r.NextPath(ctx) {
-			res := make(map[string]values.Value)
+			res := make(map[string]values.Ref)
 			r.TagResults(res)
 			got = append(got, quad.ToString(qs.NameOf(res["person"])))
 		}

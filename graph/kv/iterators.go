@@ -16,7 +16,7 @@ func (qs *QuadStore) QuadsAllIterator() iterator.Iterator {
 	return NewAllIterator(false, qs, nil)
 }
 
-func (qs *QuadStore) QuadIterator(dir quad.Direction, v values.Value) iterator.Iterator {
+func (qs *QuadStore) QuadIterator(dir quad.Direction, v values.Ref) iterator.Iterator {
 	if v == nil {
 		return iterator.NewNull()
 	}

@@ -115,7 +115,7 @@ func (it *ValueFilter) Contains(ctx context.Context, val quad.Value) bool {
 
 // If we failed the check, then the subiterator should not contribute to the result
 // set. Otherwise, go ahead and tag it.
-func (it *ValueFilter) TagResults(dst map[string]values.Value) {
+func (it *ValueFilter) TagResults(dst map[string]values.Ref) {
 	it.sub.TagResults(dst)
 }
 

@@ -34,7 +34,7 @@ type Or struct {
 	isShortCircuiting bool
 	internalIterators []Iterator
 	currentIterator   int
-	result            values.Value
+	result            values.Ref
 	err               error
 }
 
@@ -82,7 +82,7 @@ func (it *Or) SubIterators() []Generic {
 
 // Overrides BaseIterator TagResults, as it needs to add it's own results and
 // recurse down it's subiterators.
-func (it *Or) TagResults(dst map[string]values.Value) {
+func (it *Or) TagResults(dst map[string]values.Ref) {
 	it.internalIterators[it.currentIterator].TagResults(dst)
 }
 
@@ -136,12 +136,12 @@ func (it *Or) Err() error {
 	return it.err
 }
 
-func (it *Or) Result() values.Value {
+func (it *Or) Result() values.Ref {
 	return it.result
 }
 
 // Checks a value against the iterators, in order.
-func (it *Or) subItsContain(ctx context.Context, val values.Value) (bool, error) {
+func (it *Or) subItsContain(ctx context.Context, val values.Ref) (bool, error) {
 	var subIsGood = false
 	for i, sub := range it.internalIterators {
 		subIsGood = sub.Contains(ctx, val)
@@ -159,7 +159,7 @@ func (it *Or) subItsContain(ctx context.Context, val values.Value) (bool, error)
 }
 
 // Check a value against the entire graph.iterator, in order.
-func (it *Or) Contains(ctx context.Context, val values.Value) bool {
+func (it *Or) Contains(ctx context.Context, val values.Ref) bool {
 	anyGood, err := it.subItsContain(ctx, val)
 	if err != nil {
 		it.err = err

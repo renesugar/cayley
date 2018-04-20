@@ -28,8 +28,8 @@ var _ Iterator = &Materialize{}
 const MaterializeLimit = 1000
 
 type result struct {
-	id   values.Value
-	tags map[string]values.Value
+	id   values.Ref
+	tags map[string]values.Ref
 }
 
 type Materialize struct {
@@ -77,7 +77,7 @@ func (it *Materialize) Close() error {
 	return it.subIt.Close()
 }
 
-func (it *Materialize) TagResults(dst map[string]values.Value) {
+func (it *Materialize) TagResults(dst map[string]values.Ref) {
 	if !it.hasRun {
 		return
 	}
@@ -97,7 +97,7 @@ func (it *Materialize) String() string {
 	return "Materialize"
 }
 
-func (it *Materialize) Result() values.Value {
+func (it *Materialize) Result() values.Ref {
 	if it.aborted {
 		return it.subIt.Result()
 	}
@@ -182,7 +182,7 @@ func (it *Materialize) Err() error {
 	return it.err
 }
 
-func (it *Materialize) Contains(ctx context.Context, v values.Value) bool {
+func (it *Materialize) Contains(ctx context.Context, v values.Ref) bool {
 	it.runstats.Contains += 1
 	if !it.hasRun {
 		it.materializeSet(ctx)
@@ -238,7 +238,7 @@ func (it *Materialize) materializeSet(ctx context.Context) {
 			it.values = append(it.values, nil)
 		}
 		index := it.containsMap[val]
-		tags := make(map[string]values.Value, mn)
+		tags := make(map[string]values.Ref, mn)
 		it.subIt.TagResults(tags)
 		if n := len(tags); n > mn {
 			n = mn
@@ -251,7 +251,7 @@ func (it *Materialize) materializeSet(ctx context.Context) {
 				it.aborted = true
 				break
 			}
-			tags := make(map[string]values.Value, mn)
+			tags := make(map[string]values.Ref, mn)
 			it.subIt.TagResults(tags)
 			if n := len(tags); n > mn {
 				n = mn

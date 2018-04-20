@@ -28,6 +28,7 @@ type Shape interface {
 
 type Optimizer interface {
 	OptimizeShape(s Shape) (Shape, bool)
+	OptimizeExpr(s ValShape) (ValShape, bool)
 }
 
 // Composite shape can be simplified to a tree of more basic shapes.
@@ -98,14 +99,14 @@ func walkReflect(rv reflect.Value, fnc WalkFunc) {
 
 // InternalQuad is an internal representation of quad index in QuadStore.
 type InternalQuad struct {
-	Subject   values.Value
-	Predicate values.Value
-	Object    values.Value
-	Label     values.Value
+	Subject   values.Ref
+	Predicate values.Ref
+	Object    values.Ref
+	Label     values.Ref
 }
 
 // Get returns a specified direction of the quad.
-func (q InternalQuad) Get(d quad.Direction) values.Value {
+func (q InternalQuad) Get(d quad.Direction) values.Ref {
 	switch d {
 	case quad.Subject:
 		return q.Subject
@@ -121,7 +122,7 @@ func (q InternalQuad) Get(d quad.Direction) values.Value {
 }
 
 // Set assigns a specified direction of the quad to a given value.
-func (q InternalQuad) Set(d quad.Direction, v values.Value) {
+func (q InternalQuad) Set(d quad.Direction, v values.Ref) {
 	switch d {
 	case quad.Subject:
 		q.Subject = v
@@ -141,10 +142,10 @@ func (q InternalQuad) Set(d quad.Direction, v values.Value) {
 // It is used to optimize shapes based on stats from these indexes.
 type QuadIndexer interface {
 	// SizeOfIndex returns a size of a quad index with given constraints.
-	SizeOfIndex(c map[quad.Direction]values.Value) (int64, bool)
+	SizeOfIndex(c map[quad.Direction]values.Ref) (int64, bool)
 	// LookupQuadIndex finds a quad that matches a given constraint.
 	// It returns false if quad was not found, or there are multiple quads matching constraint.
-	LookupQuadIndex(c map[quad.Direction]values.Value) (InternalQuad, bool)
+	LookupQuadIndex(c map[quad.Direction]values.Ref) (InternalQuad, bool)
 }
 
 // IsNull safely checks if shape represents an empty set. It accounts for both Null and nil.
@@ -167,7 +168,7 @@ func (s Null) Optimize(r Optimizer) (Shape, bool) {
 }
 
 // One checks if Shape represents a single fixed value and returns it.
-func One(s Shape) (values.Value, bool) {
+func One(s Shape) (values.Ref, bool) {
 	switch s := s.(type) {
 	case Fixed:
 		if len(s) == 1 {
@@ -178,9 +179,9 @@ func One(s Shape) (values.Value, bool) {
 }
 
 // Fixed is a static set of nodes. Defined only for a particular QuadStore.
-type Fixed []values.Value
+type Fixed []values.Ref
 
-func (s *Fixed) Add(v ...values.Value) {
+func (s *Fixed) Add(v ...values.Ref) {
 	*s = append(*s, v...)
 }
 func (s Fixed) BuildIterator() iterator.Iterator {
@@ -207,7 +208,7 @@ func (s Fixed) Optimize(r Optimizer) (Shape, bool) {
 //
 // Shape implementations should try to push these objects up the tree during optimization process.
 type FixedTags struct {
-	Tags map[string]values.Value
+	Tags map[string]values.Ref
 	On   Shape
 }
 
@@ -231,7 +232,7 @@ func (s FixedTags) Optimize(r Optimizer) (Shape, bool) {
 	if len(s.Tags) == 0 {
 		return s.On, true
 	} else if s2, ok := s.On.(FixedTags); ok {
-		tags := make(map[string]values.Value, len(s.Tags)+len(s2.Tags))
+		tags := make(map[string]values.Ref, len(s.Tags)+len(s2.Tags))
 		for k, v := range s.Tags {
 			tags[k] = v
 		}
@@ -275,12 +276,12 @@ func (s Materialize) Optimize(r Optimizer) (Shape, bool) {
 	return s, opt
 }
 
-func ClearFixedTags(arr []Shape) ([]Shape, map[string]values.Value) {
-	var tags map[string]values.Value
+func ClearFixedTags(arr []Shape) ([]Shape, map[string]values.Ref) {
+	var tags map[string]values.Ref
 	for i := 0; i < len(arr); i++ {
 		if ft, ok := arr[i].(FixedTags); ok {
 			if tags == nil {
-				tags = make(map[string]values.Value)
+				tags = make(map[string]values.Ref)
 				na := make([]Shape, len(arr))
 				copy(na, arr)
 				arr = na

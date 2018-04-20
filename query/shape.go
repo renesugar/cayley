@@ -11,6 +11,7 @@ import (
 )
 
 type Shape = shape.Shape
+type ValShape = shape.ValShape
 
 // Optimize applies generic optimizations for the tree.
 // If quad store is specified it will also resolve Lookups and apply any specific optimizations.
@@ -52,9 +53,13 @@ type resolveValues struct {
 }
 
 func (r resolveValues) OptimizeShape(s Shape) (Shape, bool) {
-	if l, ok := s.(gshape.Lookup); ok {
-		return l.resolve(r.qs), true
+	if l, ok := s.(gshape.Bindable); ok {
+		return l.BindTo(r.qs), true
 	}
+	return s, false
+}
+
+func (r resolveValues) OptimizeExpr(s ValShape) (ValShape, bool) {
 	return s, false
 }
 

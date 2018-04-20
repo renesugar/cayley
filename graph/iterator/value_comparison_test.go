@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package iterator
+package iterator_test
 
 import (
 	"context"
@@ -22,8 +22,9 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/graphmock"
-	"github.com/cayleygraph/cayley/graph/values"
+	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query/shape"
 )
 
 var (
@@ -32,26 +33,26 @@ var (
 	mixedStore  = &graphmock.Oldstore{Data: []string{"0", "1", "2", "3", "4", "5", "foo", "bar", "baz", "echo"}, Parse: true}
 )
 
-func simpleFixedIterator() *Fixed {
-	f := NewFixed()
+func simpleFixedIterator() shape.Values {
+	var f shape.Values
 	for i := 0; i < 5; i++ {
-		f.Add(Int64Node(i))
+		f.Add(quad.Int(i))
 	}
 	return f
 }
 
-func stringFixedIterator() *Fixed {
-	f := NewFixed()
+func stringFixedIterator() shape.Values {
+	var f shape.Values
 	for _, value := range stringStore.Data {
-		f.Add(graphmock.StringNode(value))
+		f.Add(quad.String(value))
 	}
 	return f
 }
 
-func mixedFixedIterator() *Fixed {
-	f := NewFixed()
+func mixedFixedIterator() shape.Values {
+	var f shape.Values
 	for i := 0; i < len(mixedStore.Data); i++ {
-		f.Add(Int64Node(i))
+		f.Add(quad.Int(i))
 	}
 	return f
 }
@@ -59,94 +60,83 @@ func mixedFixedIterator() *Fixed {
 var comparisonTests = []struct {
 	message  string
 	operand  quad.Value
-	operator Operator
+	operator iterator.Operator
 	expect   []quad.Value
-	qs       graph.Namer
-	iterator func() *Fixed
+	shape    func() shape.Values
 }{
 	{
 		message:  "successful int64 less than comparison",
 		operand:  quad.Int(3),
-		operator: CompareLT,
+		operator: iterator.CompareLT,
 		expect:   []quad.Value{quad.Int(0), quad.Int(1), quad.Int(2)},
-		qs:       simpleStore,
-		iterator: simpleFixedIterator,
+		shape:    simpleFixedIterator,
 	},
 	{
 		message:  "empty int64 less than comparison",
 		operand:  quad.Int(0),
-		operator: CompareLT,
+		operator: iterator.CompareLT,
 		expect:   nil,
-		qs:       simpleStore,
-		iterator: simpleFixedIterator,
+		shape:    simpleFixedIterator,
 	},
 	{
 		message:  "successful int64 greater than comparison",
 		operand:  quad.Int(2),
-		operator: CompareGT,
+		operator: iterator.CompareGT,
 		expect:   []quad.Value{quad.Int(3), quad.Int(4)},
-		qs:       simpleStore,
-		iterator: simpleFixedIterator,
+		shape:    simpleFixedIterator,
 	},
 	{
 		message:  "successful int64 greater than or equal comparison",
 		operand:  quad.Int(2),
-		operator: CompareGTE,
+		operator: iterator.CompareGTE,
 		expect:   []quad.Value{quad.Int(2), quad.Int(3), quad.Int(4)},
-		qs:       simpleStore,
-		iterator: simpleFixedIterator,
+		shape:    simpleFixedIterator,
 	},
 	{
 		message:  "successful int64 greater than or equal comparison (mixed)",
 		operand:  quad.Int(2),
-		operator: CompareGTE,
+		operator: iterator.CompareGTE,
 		expect:   []quad.Value{quad.Int(2), quad.Int(3), quad.Int(4), quad.Int(5)},
-		qs:       mixedStore,
-		iterator: mixedFixedIterator,
+		shape:    mixedFixedIterator,
 	},
 	{
 		message:  "successful string less than comparison",
 		operand:  quad.String("echo"),
-		operator: CompareLT,
+		operator: iterator.CompareLT,
 		expect:   []quad.Value{quad.String("bar"), quad.String("baz")},
-		qs:       stringStore,
-		iterator: stringFixedIterator,
+		shape:    stringFixedIterator,
 	},
 	{
 		message:  "empty string less than comparison",
 		operand:  quad.String(""),
-		operator: CompareLT,
+		operator: iterator.CompareLT,
 		expect:   nil,
-		qs:       stringStore,
-		iterator: stringFixedIterator,
+		shape:    stringFixedIterator,
 	},
 	{
 		message:  "successful string greater than comparison",
 		operand:  quad.String("echo"),
-		operator: CompareGT,
+		operator: iterator.CompareGT,
 		expect:   []quad.Value{quad.String("foo")},
-		qs:       stringStore,
-		iterator: stringFixedIterator,
+		shape:    stringFixedIterator,
 	},
 	{
 		message:  "successful string greater than or equal comparison",
 		operand:  quad.String("echo"),
-		operator: CompareGTE,
+		operator: iterator.CompareGTE,
 		expect:   []quad.Value{quad.String("foo"), quad.String("echo")},
-		qs:       stringStore,
-		iterator: stringFixedIterator,
+		shape:    stringFixedIterator,
 	},
 }
 
 func TestValueComparison(t *testing.T) {
 	ctx := context.TODO()
 	for _, test := range comparisonTests {
-		qs := test.qs
-		vc := NewComparison(test.iterator(), test.operator, test.operand, qs)
+		vc := iterator.NewComparison(test.shape().BuildIterator(), test.operator, test.operand)
 
 		var got []quad.Value
 		for vc.Next(ctx) {
-			got = append(got, qs.NameOf(vc.Result()))
+			got = append(got, vc.Result())
 		}
 		if !reflect.DeepEqual(got, test.expect) {
 			t.Errorf("Failed to show %s, got:%q expect:%q", test.message, got, test.expect)
@@ -156,82 +146,82 @@ func TestValueComparison(t *testing.T) {
 
 var vciContainsTests = []struct {
 	message  string
-	operator Operator
-	check    values.Value
+	operator iterator.Operator
+	check    quad.Value
 	expect   bool
 	qs       graph.Namer
 	val      quad.Value
-	iterator func() *Fixed
+	shape    func() shape.Values
 }{
 	{
 		message:  "1 is less than 2",
-		operator: CompareGTE,
-		check:    Int64Node(1),
+		operator: iterator.CompareGTE,
+		check:    quad.Int(1),
 		expect:   false,
 		qs:       simpleStore,
 		val:      quad.Int(2),
-		iterator: simpleFixedIterator,
+		shape:    simpleFixedIterator,
 	},
 	{
 		message:  "2 is greater than or equal to 2",
-		operator: CompareGTE,
-		check:    Int64Node(2),
+		operator: iterator.CompareGTE,
+		check:    quad.Int(2),
 		expect:   true,
 		qs:       simpleStore,
 		val:      quad.Int(2),
-		iterator: simpleFixedIterator,
+		shape:    simpleFixedIterator,
 	},
 	{
 		message:  "3 is greater than or equal to 2",
-		operator: CompareGTE,
-		check:    Int64Node(3),
+		operator: iterator.CompareGTE,
+		check:    quad.Int(3),
 		expect:   true,
 		qs:       simpleStore,
 		val:      quad.Int(2),
-		iterator: simpleFixedIterator,
+		shape:    simpleFixedIterator,
 	},
 	{
 		message:  "5 is absent from iterator",
-		operator: CompareGTE,
-		check:    Int64Node(5),
+		operator: iterator.CompareGTE,
+		check:    quad.Int(5),
 		expect:   false,
 		qs:       simpleStore,
 		val:      quad.Int(2),
-		iterator: simpleFixedIterator,
+		shape:    simpleFixedIterator,
 	},
 	{
 		message:  "foo is greater than or equal to echo",
-		operator: CompareGTE,
-		check:    graphmock.StringNode("foo"),
+		operator: iterator.CompareGTE,
+		check:    quad.String("foo"),
 		expect:   true,
 		qs:       stringStore,
 		val:      quad.String("echo"),
-		iterator: stringFixedIterator,
+		shape:    stringFixedIterator,
 	},
 	{
 		message:  "echo is greater than or equal to echo",
-		operator: CompareGTE,
-		check:    graphmock.StringNode("echo"),
+		operator: iterator.CompareGTE,
+		check:    quad.String("echo"),
 		expect:   true,
 		qs:       stringStore,
 		val:      quad.String("echo"),
-		iterator: stringFixedIterator,
+		shape:    stringFixedIterator,
 	},
 	{
 		message:  "foo is missing from the iterator",
-		operator: CompareLTE,
-		check:    graphmock.StringNode("foo"),
+		operator: iterator.CompareLTE,
+		check:    quad.String("foo"),
 		expect:   false,
 		qs:       stringStore,
 		val:      quad.String("echo"),
-		iterator: stringFixedIterator,
+		shape:    stringFixedIterator,
 	},
 }
 
 func TestVCIContains(t *testing.T) {
 	ctx := context.TODO()
 	for _, test := range vciContainsTests {
-		vc := NewComparison(test.iterator(), test.operator, test.val, test.qs)
+		vc := iterator.NewComparison(test.shape().BuildIterator(), test.operator, test.val)
 		if vc.Contains(ctx, test.check) != test.expect {
 			t.Errorf("Failed to show %s", test.message)
 		}
@@ -258,10 +248,10 @@ var comparisonIteratorTests = []struct {
 func TestComparisonIteratorErr(t *testing.T) {
 	ctx := context.TODO()
 	wantErr := errors.New("unique")
-	errIt := newTestIterator(false, wantErr)
+	errIt := newTestVIterator(false, wantErr)
 
 	for _, test := range comparisonIteratorTests {
-		vc := NewComparison(errIt, CompareLT, test.val, test.qs)
+		vc := iterator.NewComparison(errIt, iterator.CompareLT, test.val)
 
 		if vc.Next(ctx) != false {
 			t.Errorf("Comparison iterator did not pass through initial 'false': %s", test.message)

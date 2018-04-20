@@ -50,7 +50,7 @@ type LinksTo struct {
 	primaryIt Iterator
 	dir       quad.Direction
 	nextIt    Iterator
-	result    values.Value
+	result    values.Ref
 	runstats  IteratorStats
 	err       error
 }
@@ -83,7 +83,7 @@ func (it *LinksTo) Reset() {
 func (it *LinksTo) Direction() quad.Direction { return it.dir }
 
 // Tag these results, and our subiterator's results.
-func (it *LinksTo) TagResults(dst map[string]values.Value) {
+func (it *LinksTo) TagResults(dst map[string]values.Ref) {
 	it.primaryIt.TagResults(dst)
 }
 
@@ -93,7 +93,7 @@ func (it *LinksTo) String() string {
 
 // If it checks in the right direction for the subiterator, it is a valid link
 // for the LinksTo.
-func (it *LinksTo) Contains(ctx context.Context, val values.Value) bool {
+func (it *LinksTo) Contains(ctx context.Context, val values.Ref) bool {
 	it.runstats.Contains += 1
 	node := it.qs.QuadDirection(val, it.dir)
 	if it.primaryIt.Contains(ctx, node) {
@@ -105,21 +105,8 @@ func (it *LinksTo) Contains(ctx context.Context, val values.Value) bool {
 }
 
 // Return a list containing only our subiterator.
-func (it *LinksTo) SubIterators() []Iterator {
-	return []Iterator{it.primaryIt}
-}
-
-// Optimize the LinksTo, by replacing it if it can be.
-func (it *LinksTo) Optimize() (Iterator, bool) {
-	newPrimary, changed := it.primaryIt.Optimize()
-	if changed {
-		it.primaryIt = newPrimary
-		if _, ok := it.primaryIt.(*Null); ok {
-			it.nextIt.Close()
-			return it.primaryIt, true
-		}
-	}
-	return it, false
+func (it *LinksTo) SubIterators() []Generic {
+	return []Generic{it.primaryIt}
 }
 
 // Next()ing a LinksTo operates as described above.
@@ -157,7 +144,7 @@ func (it *LinksTo) Err() error {
 	return it.err
 }
 
-func (it *LinksTo) Result() values.Value {
+func (it *LinksTo) Result() values.Ref {
 	return it.result
 }
 

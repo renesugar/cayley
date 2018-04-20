@@ -556,7 +556,7 @@ func (opt Options) toQuadValue(d Document) (quad.Value, error) {
 	return nil, fmt.Errorf("unsupported value: %#v", d)
 }
 
-func (qs *QuadStore) Quad(val values.Value) quad.Quad {
+func (qs *QuadStore) Quad(val values.Ref) quad.Quad {
 	h := val.(QuadHash)
 	return quad.Quad{
 		Subject:   qs.NameOf(NodeHash(h.Get(quad.Subject))),
@@ -566,7 +566,7 @@ func (qs *QuadStore) Quad(val values.Value) quad.Quad {
 	}
 }
 
-func (qs *QuadStore) QuadIterator(d quad.Direction, val values.Value) iterator.Iterator {
+func (qs *QuadStore) QuadIterator(d quad.Direction, val values.Ref) iterator.Iterator {
 	h, ok := val.(NodeHash)
 	if !ok {
 		return iterator.NewNull()
@@ -586,14 +586,14 @@ func (qs *QuadStore) hashOf(s quad.Value) NodeHash {
 	return NodeHash(hashOf(s))
 }
 
-func (qs *QuadStore) ValueOf(s quad.Value) values.Value {
+func (qs *QuadStore) ValueOf(s quad.Value) values.Ref {
 	if s == nil {
 		return nil
 	}
 	return qs.hashOf(s)
 }
 
-func (qs *QuadStore) NameOf(v values.Value) quad.Value {
+func (qs *QuadStore) NameOf(v values.Ref) quad.Value {
 	if v == nil {
 		return nil
 	} else if v, ok := v.(graph.PreFetchedValue); ok {
@@ -637,7 +637,7 @@ func (qs *QuadStore) Close() error {
 	return qs.db.Close()
 }
 
-func (qs *QuadStore) QuadDirection(in values.Value, d quad.Direction) values.Value {
+func (qs *QuadStore) QuadDirection(in values.Ref, d quad.Direction) values.Ref {
 	return NodeHash(in.(QuadHash).Get(d))
 }
 

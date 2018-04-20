@@ -55,7 +55,7 @@ type HasA struct {
 	primaryIt Iterator
 	dir       quad.Direction
 	resultIt  Iterator
-	result    values.Value
+	result    values.Ref
 	runstats  IteratorStats
 	err       error
 }
@@ -76,8 +76,8 @@ func (it *HasA) UID() uint64 {
 }
 
 // Return our sole subiterator.
-func (it *HasA) SubIterators() []Iterator {
-	return []Iterator{it.primaryIt}
+func (it *HasA) SubIterators() []Generic {
+	return []Generic{it.primaryIt}
 }
 
 func (it *HasA) Reset() {
@@ -90,21 +90,8 @@ func (it *HasA) Reset() {
 // Direction accessor.
 func (it *HasA) Direction() quad.Direction { return it.dir }
 
-// Pass the Optimize() call along to the subiterator. If it becomes Null,
-// then the HasA becomes Null (there are no quads that have any directions).
-func (it *HasA) Optimize() (Iterator, bool) {
-	newPrimary, changed := it.primaryIt.Optimize()
-	if changed {
-		it.primaryIt = newPrimary
-		if _, ok := it.primaryIt.(*Null); ok {
-			return it.primaryIt, true
-		}
-	}
-	return it, false
-}
-
 // Pass the TagResults down the chain.
-func (it *HasA) TagResults(dst map[string]values.Value) {
+func (it *HasA) TagResults(dst map[string]values.Ref) {
 	it.primaryIt.TagResults(dst)
 }
 
@@ -115,7 +102,7 @@ func (it *HasA) String() string {
 // Check a value against our internal iterator. In order to do this, we must first open a new
 // iterator of "quads that have `val` in our direction", given to us by the quad store,
 // and then Next() values out of that iterator and Contains() them against our subiterator.
-func (it *HasA) Contains(ctx context.Context, val values.Value) bool {
+func (it *HasA) Contains(ctx context.Context, val values.Ref) bool {
 	it.runstats.Contains += 1
 	if clog.V(4) {
 		clog.Infof("Id is %v", val)
@@ -206,7 +193,7 @@ func (it *HasA) Err() error {
 	return it.err
 }
 
-func (it *HasA) Result() values.Value {
+func (it *HasA) Result() values.Ref {
 	return it.result
 }
 

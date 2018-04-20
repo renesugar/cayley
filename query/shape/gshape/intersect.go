@@ -6,6 +6,25 @@ import (
 	. "github.com/cayleygraph/cayley/query/shape"
 )
 
+func clearFixedTags(arr []Shape) ([]Shape, map[string]values.Ref) {
+	var tags map[string]values.Ref
+	for i := 0; i < len(arr); i++ {
+		if ft, ok := arr[i].(FixedTags); ok {
+			if tags == nil {
+				tags = make(map[string]values.Ref)
+				na := make([]Shape, len(arr))
+				copy(na, arr)
+				arr = na
+			}
+			arr[i] = ft.On
+			for k, v := range ft.Tags {
+				tags[k] = v
+			}
+		}
+	}
+	return arr, tags
+}
+
 // Intersect computes an intersection of nodes between multiple queries. Similar to And iterator.
 type Intersect []Shape
 

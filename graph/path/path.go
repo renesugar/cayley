@@ -22,7 +22,9 @@ import (
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query"
 	"github.com/cayleygraph/cayley/query/shape"
+	"github.com/cayleygraph/cayley/query/shape/gshape"
 )
 
 type applyMorphism func(shape.Shape, *pathContext) (shape.Shape, *pathContext)
@@ -511,7 +513,7 @@ func (p *Path) BuildIterator() iterator.Iterator {
 
 // BuildIteratorOn will return an iterator for this path on the given QuadStore.
 func (p *Path) BuildIteratorOn(qs graph.QuadStore) iterator.Iterator {
-	return shape.BuildIterator(qs, p.Shape())
+	return query.BuildIterator(qs, p.Shape())
 }
 
 // Morphism returns the morphism of this path.  The returned value is a
@@ -551,10 +553,10 @@ func (p *Path) Count() *Path {
 
 // Iterate is an shortcut for graph.Iterate.
 func (p *Path) Iterate(ctx context.Context) *graph.IterateChain {
-	return shape.Iterate(ctx, p.qs, p.Shape())
+	return query.Iterate(ctx, p.qs, p.Shape())
 }
 func (p *Path) Shape() shape.Shape {
-	return p.ShapeFrom(shape.AllNodes{})
+	return p.ShapeFrom(gshape.AllNodes{})
 }
 func (p *Path) ShapeFrom(from shape.Shape) shape.Shape {
 	s := from

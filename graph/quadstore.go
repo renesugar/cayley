@@ -65,8 +65,6 @@ func RefOf(ctx context.Context, qs QuadStore, v quad.Value) (values.Ref, error) 
 	return it.Result(), it.Err()
 }
 
-// TODO: require and implement Resolver
-
 type Resolver interface {
 	// Given a node ID, return the opaque token used by the QuadStore
 	// to represent that id.

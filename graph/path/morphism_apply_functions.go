@@ -79,11 +79,11 @@ func isNodeMorphism(nodes ...values.Ref) morphism {
 }
 
 // filterMorphism is the set of nodes that passes filters.
-func filterMorphism(filt []gshape.ValueFilter) morphism {
+func filterMorphism(filt []shape.ValueFilter) morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return filterMorphism(filt), ctx },
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return gshape.AddFilters(in, filt...), ctx
+			return shape.AddFilters(in, filt...), ctx
 		},
 	}
 }
@@ -113,8 +113,8 @@ func hasShapeMorphism(via interface{}, rev bool, nodes shape.Shape) morphism {
 
 // hasFilterMorphism is the set of nodes that is reachable via either a *Path, a
 // single node.(stringg) or a list of nodes.([]string) and that passes provided filters.
-func hasFilterMorphism(via interface{}, rev bool, filt []gshape.ValueFilter) morphism {
-	return hasShapeMorphism(via, rev, gshape.Filter{
+func hasFilterMorphism(via interface{}, rev bool, filt []shape.ValueFilter) morphism {
+	return hasShapeMorphism(via, rev, shape.Filter{
 		From:    gshape.AllNodes{},
 		Filters: filt,
 	})
@@ -433,7 +433,7 @@ func countMorphism() morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return countMorphism(), ctx },
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return gshape.Count{Values: in}, ctx
+			return shape.Count{Values: in}, ctx
 		},
 	}
 }

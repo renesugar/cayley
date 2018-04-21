@@ -107,7 +107,7 @@ func (it *Iterator) NextPath(ctx context.Context) bool {
 }
 
 // No subiterators.
-func (it *Iterator) SubIterators() []iterator.Iterator {
+func (it *Iterator) SubIterators() []iterator.Generic {
 	return nil
 }
 

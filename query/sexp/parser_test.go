@@ -23,7 +23,8 @@ import (
 
 	"github.com/cayleygraph/cayley/graph/graphtest/testutil"
 	_ "github.com/cayleygraph/cayley/graph/memstore"
-	sh "github.com/cayleygraph/cayley/graph/shape"
+	sh "github.com/cayleygraph/cayley/query/shape"
+	gsh "github.com/cayleygraph/cayley/query/shape/gshape"
 	_ "github.com/cayleygraph/cayley/writer"
 	"github.com/stretchr/testify/require"
 )
@@ -58,9 +59,9 @@ var testQueries = []struct {
 		query:   "($a (:can \"win\"))",
 		shape: sh.Save{
 			Tags: []string{"$a"},
-			From: sh.NodesFrom{
+			From: gsh.NodesFrom{
 				Dir: quad.Subject,
-				Quads: sh.Quads{
+				Quads: gsh.Quads{
 					{Dir: quad.Predicate, Values: lookup("can")},
 					{Dir: quad.Object, Values: lookup("win")},
 				},
@@ -72,16 +73,16 @@ var testQueries = []struct {
 		message: "get a single quad linkage (internal)",
 		add:     quads1,
 		query:   "(\"i\" (:can $a))",
-		shape: sh.Intersect{
+		shape: gsh.Intersect{
 			lookup("i"),
-			sh.NodesFrom{
+			gsh.NodesFrom{
 				Dir: quad.Subject,
-				Quads: sh.Quads{
+				Quads: gsh.Quads{
 					{Dir: quad.Predicate, Values: lookup("can")},
 					{
 						Dir: quad.Object, Values: sh.Save{
 							Tags: []string{"$a"},
-							From: sh.AllNodes{},
+							From: gsh.AllNodes{},
 						},
 					},
 				},
@@ -98,18 +99,18 @@ var testQueries = []struct {
 		query: "(\"i\"\n" +
 			"(:like\n" +
 			"($a (:is :good))))",
-		shape: sh.Intersect{
+		shape: gsh.Intersect{
 			lookup("i"),
-			sh.NodesFrom{
+			gsh.NodesFrom{
 				Dir: quad.Subject,
-				Quads: sh.Quads{
+				Quads: gsh.Quads{
 					{Dir: quad.Predicate, Values: lookup("like")},
 					{
 						Dir: quad.Object, Values: sh.Save{
 							Tags: []string{"$a"},
-							From: sh.NodesFrom{
+							From: gsh.NodesFrom{
 								Dir: quad.Subject,
-								Quads: sh.Quads{
+								Quads: gsh.Quads{
 									{Dir: quad.Predicate, Values: lookup("is")},
 									{Dir: quad.Object, Values: lookup("good")},
 								},
@@ -138,17 +139,17 @@ var testQueries = []struct {
 		)`,
 		shape: sh.Save{
 			Tags: []string{"$a"},
-			From: sh.Intersect{
-				sh.NodesFrom{
+			From: gsh.Intersect{
+				gsh.NodesFrom{
 					Dir: quad.Subject,
-					Quads: sh.Quads{
+					Quads: gsh.Quads{
 						{Dir: quad.Predicate, Values: lookup("like")},
 						{Dir: quad.Object, Values: lookup("beer")},
 					},
 				},
-				sh.NodesFrom{
+				gsh.NodesFrom{
 					Dir: quad.Subject,
-					Quads: sh.Quads{
+					Quads: gsh.Quads{
 						{Dir: quad.Predicate, Values: lookup("like")},
 						{Dir: quad.Object, Values: lookup("food")},
 					},

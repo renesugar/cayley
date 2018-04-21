@@ -124,7 +124,7 @@ func (it *AllIterator) Close() error {
 
 func (it *AllIterator) TagResults(dst map[string]values.Ref) {}
 
-func (it *AllIterator) SubIterators() []iterator.Iterator   { return nil }
+func (it *AllIterator) SubIterators() []iterator.Generic    { return nil }
 func (it *AllIterator) Optimize() (iterator.Iterator, bool) { return it, false }
 
 func (it *AllIterator) UID() uint64 {

@@ -20,21 +20,23 @@ import (
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query"
 	"github.com/cayleygraph/cayley/query/shape"
+	"github.com/cayleygraph/cayley/query/shape/gshape"
 )
 
-func BuildIteratorTreeForQuery(qs graph.QuadStore, query string) graph.Iterator {
-	s, err := BuildShape(query)
+func BuildIteratorTreeForQuery(qs graph.QuadStore, qu string) iterator.Iterator {
+	s, err := BuildShape(qu)
 	if err != nil {
 		return iterator.NewError(err)
 	}
-	return shape.BuildIterator(qs, s)
+	return query.BuildIterator(qs, s)
 }
 
-func BuildShape(query string) (shape.Shape, error) {
-	tree := parseQuery(query)
+func BuildShape(qu string) (shape.Shape, error) {
+	tree := parseQuery(qu)
 	s, _ := buildShape(tree)
-	s, _ = shape.Optimize(s, nil)
+	s, _ = query.Optimize(s, nil)
 	return s, nil
 }
 
@@ -195,7 +197,7 @@ func getIdentString(tree *peg.ExpressionTree) string {
 }
 
 func lookup(s string) shape.Shape {
-	return shape.Lookup{quad.StringToValue(s)}
+	return gshape.Lookup{quad.StringToValue(s)}
 }
 
 func buildShape(tree *peg.ExpressionTree) (_ shape.Shape, opt bool) {
@@ -207,7 +209,7 @@ func buildShape(tree *peg.ExpressionTree) (_ shape.Shape, opt bool) {
 		nodeID := getIdentString(tree)
 		if tree.Children[0].Name == "Variable" {
 			out = shape.Save{
-				From: shape.AllNodes{},
+				From: gshape.AllNodes{},
 				Tags: []string{nodeID},
 			}
 		} else {
@@ -225,11 +227,11 @@ func buildShape(tree *peg.ExpressionTree) (_ shape.Shape, opt bool) {
 			i++
 		}
 		it, _ := buildShape(tree.Children[i])
-		return shape.Quads{
+		return gshape.Quads{
 			{Dir: quad.Predicate, Values: it},
 		}, false
 	case "RootConstraint":
-		var and shape.IntersectOptional
+		var and gshape.IntersectOptional
 		for _, c := range tree.Children {
 			switch c.Name {
 			case "NodeIdentifier":
@@ -250,7 +252,7 @@ func buildShape(tree *peg.ExpressionTree) (_ shape.Shape, opt bool) {
 	case "Constraint":
 		topLevelDir := quad.Subject
 		subItDir := quad.Object
-		var subAnd shape.IntersectOptional
+		var subAnd gshape.IntersectOptional
 		isOptional := false
 		for _, c := range tree.Children {
 			switch c.Name {
@@ -275,7 +277,7 @@ func buildShape(tree *peg.ExpressionTree) (_ shape.Shape, opt bool) {
 				fallthrough
 			case "RootConstraint":
 				it, opt := buildShape(c)
-				l := shape.Quads{
+				l := gshape.Quads{
 					{Dir: subItDir, Values: it},
 				}
 				if opt {
@@ -288,7 +290,7 @@ func buildShape(tree *peg.ExpressionTree) (_ shape.Shape, opt bool) {
 				continue
 			}
 		}
-		return shape.NodesFrom{
+		return gshape.NodesFrom{
 			Dir:   topLevelDir,
 			Quads: subAnd,
 		}, isOptional

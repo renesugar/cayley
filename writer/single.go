@@ -15,6 +15,7 @@
 package writer
 
 import (
+	"context"
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/quad"
 )
@@ -85,8 +86,10 @@ func (s *Single) RemoveQuad(q quad.Quad) error {
 //
 // It returns ErrNodeNotExists if node is missing.
 func (s *Single) RemoveNode(v quad.Value) error {
-	gv := s.qs.ValueOf(v)
-	if gv == nil {
+	gv, err := graph.RefOf(context.TODO(), s.qs, v)
+	if err != nil {
+		return err
+	} else if gv == nil {
 		return graph.ErrNodeNotExists
 	}
 	del := graph.NewRemover(s)

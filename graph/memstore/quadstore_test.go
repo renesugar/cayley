@@ -26,6 +26,7 @@ import (
 	"github.com/cayleygraph/cayley/graph/iterator/giterator"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/query"
+	"github.com/cayleygraph/cayley/query/shape"
 	"github.com/cayleygraph/cayley/query/shape/gshape"
 	"github.com/cayleygraph/cayley/writer"
 	"github.com/stretchr/testify/require"
@@ -97,7 +98,7 @@ type pair struct {
 
 func TestMemstoreValueOf(t *testing.T) {
 	qs, _, index := makeTestStore(simpleGraph)
-	require.Equal(t, int64(22), qs.Size())
+	require.Equal(t, int64(22), qs.Stats().Links)
 
 	for _, test := range index {
 		v := qs.ValueOf(quad.Raw(test.query))
@@ -120,7 +121,7 @@ func TestIteratorsAndNextResultOrderA(t *testing.T) {
 	fixed2 := iterator.NewFixed()
 	fixed2.Add(qs.ValueOf(quad.Raw("follows")))
 
-	all := qs.NodesAllIterator()
+	all := qs.AllNodes().BuildIterator()
 
 	innerAnd := iterator.NewAnd(
 		giterator.NewLinksTo(qs, fixed2, quad.Predicate),
@@ -165,12 +166,7 @@ func TestLinksToOptimization(t *testing.T) {
 	lto := query.BuildIterator(qs, gshape.Quads{
 		{Dir: quad.Object, Values: gshape.Lookup{quad.Raw("cool")}},
 	})
-
-	newIt, changed := lto.Optimize()
-	if changed {
-		t.Errorf("unexpected optimization step")
-	}
-	if _, ok := newIt.(*Iterator); !ok {
+	if _, ok := lto.(*Iterator); !ok {
 		t.Fatal("Didn't swap out to LLRB")
 	}
 }
@@ -190,28 +186,26 @@ func TestRemoveQuad(t *testing.T) {
 		t.Error("Couldn't remove quad", err)
 	}
 
-	fixed := iterator.NewFixed()
-	fixed.Add(qs.ValueOf(quad.Raw("E")))
+	values := func(v string) shape.Shape {
+		return gshape.ValuesToRefs{Values: shape.Values{quad.Raw(v)}}
+	}
 
-	fixed2 := iterator.NewFixed()
-	fixed2.Add(qs.ValueOf(quad.Raw("follows")))
+	it := query.BuildIterator(qs, gshape.NodesFrom{
+		Dir: quad.Object, Quads: gshape.Quads{
+			{Dir: quad.Subject, Values: values("E")},
+			{Dir: quad.Predicate, Values: values("follows")},
+		},
+	})
+	defer it.Close()
 
-	innerAnd := iterator.NewAnd(
-		giterator.NewLinksTo(qs, fixed, quad.Subject),
-		giterator.NewLinksTo(qs, fixed2, quad.Predicate),
-	)
-
-	hasa := giterator.NewHasA(qs, innerAnd, quad.Object)
-
-	newIt, _ := hasa.Optimize()
-	if newIt.Next(ctx) {
+	if it.Next(ctx) {
 		t.Error("E should not have any followers.")
 	}
 }
 
 func TestTransaction(t *testing.T) {
 	qs, w, _ := makeTestStore(simpleGraph)
-	size := qs.Size()
+	size := qs.Stats().Links
 
 	tx := graph.NewTransaction()
 	tx.AddQuad(quad.Make(
@@ -229,7 +223,7 @@ func TestTransaction(t *testing.T) {
 	if err == nil {
 		t.Error("Able to remove a non-existent quad")
 	}
-	if size != qs.Size() {
+	if size != qs.Stats().Links {
 		t.Error("Appended a new quad in a failed transaction")
 	}
 }

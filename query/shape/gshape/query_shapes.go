@@ -2,6 +2,7 @@ package gshape
 
 import (
 	"fmt"
+
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/graph/iterator/giterator"
@@ -12,9 +13,18 @@ import (
 
 var ErrNoQuadStore = fmt.Errorf("query should be bound to quad store")
 
+func errNoQsIterator() iterator.Iterator {
+	return iterator.NewError(ErrNoQuadStore)
+}
+
 type Bindable interface {
 	shape.Shape
 	BindTo(qs graph.QuadStore) shape.Shape
+}
+
+type ValBindable interface {
+	shape.ValShape
+	BindTo(qs graph.QuadStore) shape.ValShape
 }
 
 var _ Bindable = AllNodes{}
@@ -27,7 +37,7 @@ func (s AllNodes) BindTo(qs graph.QuadStore) shape.Shape {
 }
 
 func (s AllNodes) BuildIterator() iterator.Iterator {
-	return iterator.NewError(ErrNoQuadStore)
+	return errNoQsIterator()
 }
 func (s AllNodes) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	if qs, ok := r.(graph.QuadStore); ok {
@@ -96,7 +106,7 @@ func (s Lookup) BindTo(qs graph.QuadStore) shape.Shape {
 	return s.bindTo(qs)
 }
 func (s Lookup) BuildIterator() iterator.Iterator {
-	return iterator.NewError(ErrNoQuadStore)
+	return errNoQsIterator()
 }
 func (s Lookup) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	if r == nil {
@@ -146,6 +156,12 @@ func (s linksTo) BuildIterator() iterator.Iterator {
 func (s linksTo) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	var opt bool
 	s.values, opt = s.values.Optimize(r)
+	if r == nil {
+		return s, opt
+	}
+	if sn, ok := r.OptimizeShape(s); ok {
+		return sn, true
+	}
 	return s, opt
 }
 
@@ -173,7 +189,7 @@ func (s Quads) BindTo(qs graph.QuadStore) shape.Shape {
 	return all
 }
 func (s Quads) BuildIterator() iterator.Iterator {
-	return iterator.NewError(ErrNoQuadStore)
+	return errNoQsIterator()
 }
 func (s Quads) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	var opt bool
@@ -228,6 +244,12 @@ func (s nodesFrom) BuildIterator() iterator.Iterator {
 func (s nodesFrom) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	var opt bool
 	s.quads, opt = s.quads.Optimize(r)
+	if r == nil {
+		return s, opt
+	}
+	if sn, ok := r.OptimizeShape(s); ok {
+		return sn, true
+	}
 	return s, opt
 }
 
@@ -249,7 +271,7 @@ func (s NodesFrom) BindTo(qs graph.QuadStore) shape.Shape {
 	return nodesFrom{qs: qs, dir: s.Dir, quads: s.Quads}
 }
 func (s NodesFrom) BuildIterator() iterator.Iterator {
-	return iterator.NewError(ErrNoQuadStore)
+	return errNoQsIterator()
 }
 func (s NodesFrom) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	if shape.IsNull(s.Quads) {
@@ -397,7 +419,13 @@ func (s QuadsAction) BuildIterator() iterator.Iterator {
 }
 func (s QuadsAction) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	if r != nil {
-		return r.OptimizeShape(s)
+		if sn, ok := r.OptimizeShape(s); ok {
+			return sn, true
+		}
+		if sn, ok := r.OptimizeShape(s.Simplify()); ok {
+			return sn, true
+		}
+		return s, false
 	}
 	// if optimizer has stats for quad indexes we can use them to do more
 	ind, ok := r.(shape.QuadIndexer)
@@ -443,6 +471,58 @@ func ToValues(qs giterator.Namer, refs shape.Shape) shape.ValShape {
 	return toValues{qs: qs, refs: refs}
 }
 
+var _ ValBindable = RefsToValues{}
+
+type RefsToValues struct {
+	Refs shape.Shape
+}
+
+func (s RefsToValues) BuildIterator() iterator.VIterator {
+	return iterator.NewErrorV(ErrNoQuadStore)
+}
+
+func (s RefsToValues) Optimize(r shape.Optimizer) (shape.ValShape, bool) {
+	var opt bool
+	s.Refs, opt = s.Refs.Optimize(r)
+	if r == nil {
+		return s, opt
+	}
+	if sn, ok := r.OptimizeValShape(s); ok {
+		return sn, true
+	}
+	return s, opt
+}
+
+func (s RefsToValues) BindTo(qs graph.QuadStore) shape.ValShape {
+	return qs.ToValue(s.Refs)
+}
+
+var _ Bindable = ValuesToRefs{}
+
+type ValuesToRefs struct {
+	Values shape.ValShape
+}
+
+func (s ValuesToRefs) BuildIterator() iterator.Iterator {
+	return errNoQsIterator()
+}
+
+func (s ValuesToRefs) Optimize(r shape.Optimizer) (shape.Shape, bool) {
+	var opt bool
+	s.Values, opt = s.Values.Optimize(r)
+	if r == nil {
+		return s, opt
+	}
+	if sn, ok := r.OptimizeShape(s); ok {
+		return sn, true
+	}
+	return s, opt
+}
+
+func (s ValuesToRefs) BindTo(qs graph.QuadStore) shape.Shape {
+	return qs.ToRef(s.Values)
+}
+
 type toValues struct {
 	qs   giterator.Namer
 	refs shape.Shape
@@ -475,4 +555,16 @@ func (s toRefs) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 
 func (s toRefs) BuildIterator() iterator.Iterator {
 	return giterator.NewValueToRef(s.qs, s.vals.BuildIterator())
+}
+
+func CompareNodes(nodes shape.Shape, op shape.CmpOperator, v quad.Value) shape.Shape {
+	if to, ok := nodes.(ValuesToRefs); ok {
+		to.Values = shape.Compare(to.Values, op, v)
+		return to
+	}
+	return ValuesToRefs{
+		Values: shape.Compare(
+			RefsToValues{Refs: nodes}, op, v,
+		),
+	}
 }

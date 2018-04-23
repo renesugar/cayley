@@ -19,9 +19,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/query/shape"
+	"github.com/cayleygraph/cayley/query/shape/gshape"
 )
 
 func NewOptimizer() *Optimizer {
@@ -78,19 +78,19 @@ func sortDirs(dirs []quad.Direction) {
 
 func (opt *Optimizer) OptimizeShape(s shape.Shape) (shape.Shape, bool) {
 	switch s := s.(type) {
-	case shape.AllNodes:
+	case gshape.AllNodes:
 		return AllNodes(), true
-	case shape.Lookup:
+	case gshape.Lookup:
 		return opt.optimizeLookup(s)
 	case shape.Filter:
 		return opt.optimizeFilters(s)
-	case shape.Intersect:
+	case gshape.Intersect:
 		return opt.optimizeIntersect(s)
-	case shape.Quads:
+	case gshape.Quads:
 		return opt.optimizeQuads(s)
-	case shape.NodesFrom:
+	case gshape.NodesFrom:
 		return opt.optimizeNodesFrom(s)
-	case shape.QuadsAction:
+	case gshape.QuadsAction:
 		return opt.optimizeQuadsAction(s)
 	case shape.Save:
 		return opt.optimizeSave(s)
@@ -99,6 +99,10 @@ func (opt *Optimizer) OptimizeShape(s shape.Shape) (shape.Shape, bool) {
 	default:
 		return s, false
 	}
+}
+
+func (opt *Optimizer) OptimizeValShape(s shape.ValShape) (shape.ValShape, bool) {
+	return s, false // FIXME
 }
 
 func selectValueQuery(v quad.Value, op CmpOp) ([]Where, []Value, bool) {
@@ -203,7 +207,7 @@ func SelectValue(v quad.Value, op CmpOp) *Select {
 	return &sel
 }
 
-func (opt *Optimizer) optimizeLookup(s shape.Lookup) (shape.Shape, bool) {
+func (opt *Optimizer) optimizeLookup(s gshape.Lookup) (shape.Shape, bool) {
 	if len(s) != 1 {
 		// TODO: support for IN
 		return s, false
@@ -224,13 +228,17 @@ func (opt *Optimizer) optimizeFilter(from shape.Shape, f shape.ValueFilter) ([]W
 	case shape.Comparison:
 		var cmp CmpOp
 		switch f.Op {
-		case iterator.CompareGT:
+		case shape.CompareEQ:
+			cmp = OpEqual
+		case shape.CompareNEQ:
+			cmp = OpNotEqual
+		case shape.CompareGT:
 			cmp = OpGT
-		case iterator.CompareGTE:
+		case shape.CompareGTE:
 			cmp = OpGTE
-		case iterator.CompareLT:
+		case shape.CompareLT:
 			cmp = OpLT
-		case iterator.CompareLTE:
+		case shape.CompareLTE:
 			cmp = OpLTE
 		default:
 			return nil, nil, false
@@ -267,7 +275,7 @@ func (opt *Optimizer) optimizeFilter(from shape.Shape, f shape.ValueFilter) ([]W
 }
 func (opt *Optimizer) optimizeFilters(s shape.Filter) (shape.Shape, bool) {
 	switch from := s.From.(type) {
-	case shape.AllNodes:
+	case gshape.AllNodes:
 	case Select:
 		if !from.isAll() {
 			return s, false
@@ -305,7 +313,7 @@ func (opt *Optimizer) optimizeFilters(s shape.Filter) (shape.Shape, bool) {
 	return left, true
 }
 
-func (opt *Optimizer) optimizeQuads(s shape.Quads) (shape.Shape, bool) {
+func (opt *Optimizer) optimizeQuads(s gshape.Quads) (shape.Shape, bool) {
 	t1 := opt.nextTable()
 	sel := AllQuads(t1)
 	for _, f := range s {
@@ -376,7 +384,7 @@ func (opt *Optimizer) optimizeQuads(s shape.Quads) (shape.Shape, bool) {
 	return sel, true
 }
 
-func (opt *Optimizer) optimizeNodesFrom(s shape.NodesFrom) (shape.Shape, bool) {
+func (opt *Optimizer) optimizeNodesFrom(s gshape.NodesFrom) (shape.Shape, bool) {
 	sel, ok := s.Quads.(Select)
 	if !ok {
 		return s, false
@@ -402,7 +410,7 @@ func (opt *Optimizer) optimizeNodesFrom(s shape.NodesFrom) (shape.Shape, bool) {
 	return sel, true
 }
 
-func (opt *Optimizer) optimizeQuadsAction(s shape.QuadsAction) (shape.Shape, bool) {
+func (opt *Optimizer) optimizeQuadsAction(s gshape.QuadsAction) (shape.Shape, bool) {
 	sel := Select{
 		Fields: []Field{
 			{Name: dirField(s.Result), Alias: tagNode},
@@ -487,10 +495,10 @@ func (opt *Optimizer) optimizePage(s shape.Page) (shape.Shape, bool) {
 	return sel, true
 }
 
-func (opt *Optimizer) optimizeIntersect(s shape.Intersect) (shape.Shape, bool) {
+func (opt *Optimizer) optimizeIntersect(s gshape.Intersect) (shape.Shape, bool) {
 	var (
 		sels  []Select
-		other shape.Intersect
+		other gshape.Intersect
 	)
 	// we will add our merged Select to this slot
 	other = append(other, nil)

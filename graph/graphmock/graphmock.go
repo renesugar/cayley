@@ -31,6 +31,14 @@ type Oldstore struct {
 	Iter  shape.Shape
 }
 
+func (qs *Oldstore) ToValue(s shape.Shape) shape.ValShape {
+	return gshape.ToValues(qs, s)
+}
+
+func (qs *Oldstore) ToRef(s shape.ValShape) shape.Shape {
+	return gshape.ToRefs(qs, s)
+}
+
 func (qs *Oldstore) valueAt(i int) quad.Value {
 	if !qs.Parse {
 		return quad.Raw(qs.Data[i])
@@ -84,7 +92,7 @@ func (qs *Oldstore) NameOf(v values.Ref) quad.Value {
 	}
 }
 
-func (qs *Oldstore) Size() int64 { return 0 }
+func (qs *Oldstore) Stats() graph.Stats { return graph.Stats{} }
 
 func (qs *Oldstore) DebugPrint() {}
 

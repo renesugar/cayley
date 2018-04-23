@@ -1,7 +1,6 @@
 package shape
 
 import (
-	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/quad"
 )
 
@@ -24,6 +23,6 @@ func AddFilters(nodes ValShape, filters ...ValueFilter) ValShape {
 	}
 }
 
-func Compare(nodes ValShape, op iterator.Operator, v quad.Value) ValShape {
+func Compare(nodes ValShape, op CmpOperator, v quad.Value) ValShape {
 	return AddFilters(nodes, Comparison{Op: op, Val: v})
 }

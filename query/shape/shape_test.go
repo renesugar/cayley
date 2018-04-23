@@ -42,7 +42,7 @@ type ValLookup map[quad.Value]values.Ref
 func (qs ValLookup) OptimizeShape(s Shape) (Shape, bool) {
 	return s, false // emulate dumb quad store
 }
-func (qs ValLookup) OptimizeExpr(s ValShape) (ValShape, bool) {
+func (qs ValLookup) OptimizeValShape(s ValShape) (ValShape, bool) {
 	return s, false // emulate dumb quad store
 }
 func (qs ValLookup) ValueOf(v quad.Value) values.Ref {

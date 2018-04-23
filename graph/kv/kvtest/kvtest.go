@@ -9,13 +9,15 @@ import (
 	"github.com/cayleygraph/cayley/graph/graphtest"
 	"github.com/cayleygraph/cayley/graph/graphtest/testutil"
 	"github.com/cayleygraph/cayley/graph/kv"
-	"github.com/cayleygraph/cayley/graph/shape"
 	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query"
+	"github.com/cayleygraph/cayley/query/shape/gshape"
+	hkv "github.com/nwca/hidalgo/kv"
 	"github.com/stretchr/testify/require"
 )
 
-type DatabaseFunc func(t testing.TB) (kv.BucketKV, graph.Options, func())
+type DatabaseFunc func(t testing.TB) (hkv.KV, graph.Options, func())
 
 type Config struct {
 	AlwaysRunIntegration bool
@@ -75,12 +77,12 @@ func testOptimize(t *testing.T, gen DatabaseFunc, _ *Config) {
 	testutil.MakeWriter(t, qs, opts, graphtest.MakeQuadSet()...)
 
 	// With an linksto-fixed pair
-	lto := shape.BuildIterator(qs, shape.Quads{
-		{Dir: quad.Object, Values: shape.Lookup{quad.Raw("F")}},
+	lto := query.BuildIterator(qs, gshape.Quads{
+		{Dir: quad.Object, Values: gshape.Lookup{quad.Raw("F")}},
 	})
 
-	oldIt := shape.BuildIterator(qs, shape.Quads{
-		{Dir: quad.Object, Values: shape.Lookup{quad.Raw("F")}},
+	oldIt := query.BuildIterator(qs, gshape.Quads{
+		{Dir: quad.Object, Values: gshape.Lookup{quad.Raw("F")}},
 	})
 	newIt, ok := lto.Optimize()
 	if ok {

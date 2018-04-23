@@ -18,26 +18,17 @@ import (
 	"os"
 
 	"github.com/cayleygraph/cayley/graph"
-	"github.com/cayleygraph/cayley/graph/kv"
-	ukv "github.com/nwca/uda/kv"
-	"github.com/nwca/uda/kv/flat"
-	"github.com/nwca/uda/kv/flat/leveldb"
+	hkv "github.com/nwca/hidalgo/kv"
+	"github.com/nwca/hidalgo/kv/flat"
+	"github.com/nwca/hidalgo/kv/flat/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
-func init() {
-	kv.Register(Type, kv.Registration{
-		NewFunc:      Open,
-		InitFunc:     Create,
-		IsPersistent: true,
-	})
-}
-
 const (
-	Type = "leveldb"
+	Type = leveldb.Name
 )
 
-func Create(path string, m graph.Options) (ukv.KV, error) {
+func Create(path string, m graph.Options) (hkv.KV, error) {
 	err := os.MkdirAll(path, 0700)
 	if err != nil {
 		return nil, err
@@ -50,15 +41,15 @@ func Create(path string, m graph.Options) (ukv.KV, error) {
 	} else if err != nil {
 		return nil, err
 	}
-	return flat.New(newDB(db, m), '/'), nil
+	return flat.Upgrade(db), nil
 }
 
-func Open(path string, m graph.Options) (ukv.KV, error) {
+func Open(path string, m graph.Options) (hkv.KV, error) {
 	db, err := leveldb.Open(path, &opt.Options{
 		ErrorIfMissing: true,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return flat.New(newDB(db, m), '/'), nil
+	return flat.Upgrade(db), nil
 }

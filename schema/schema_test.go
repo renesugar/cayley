@@ -556,7 +556,7 @@ func TestLoadIteratorTo(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			qs := memstore.New(c.quads...)
 			out := reflect.New(reflect.TypeOf(c.expect))
-			var it graph.Iterator
+			var it iterator.Iterator
 			if c.from != nil {
 				fixed := iterator.NewFixed()
 				for _, id := range c.from {

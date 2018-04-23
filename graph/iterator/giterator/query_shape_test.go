@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package giterator
+package giterator_test
 
 import (
 	"reflect"
@@ -21,19 +21,20 @@ import (
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/graphmock"
 	. "github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/iterator/giterator"
 	"github.com/cayleygraph/cayley/quad"
 )
 
-func hasaWithTag(namer graph.Namer, quads graph.QuadIndexer, tag string, target string) *HasA {
+func hasaWithTag(namer giterator.Namer, quads graph.QuadIndexer, tag string, target string) *giterator.HasA {
 	and := NewAnd()
 
 	obj := NewFixed(namer.ValueOf(quad.Raw(target)))
-	and.AddSubIterator(NewLinksTo(quads, Tag(obj, tag), quad.Object))
+	and.AddSubIterator(giterator.NewLinksTo(quads, Tag(obj, tag), quad.Object))
 
 	pred := NewFixed(namer.ValueOf(quad.Raw("status")))
-	and.AddSubIterator(NewLinksTo(quads, pred, quad.Predicate))
+	and.AddSubIterator(giterator.NewLinksTo(quads, pred, quad.Predicate))
 
-	return NewHasA(quads, and, quad.Subject)
+	return giterator.NewHasA(quads, and, quad.Subject)
 }
 
 func TestQueryShape(t *testing.T) {
@@ -49,19 +50,19 @@ func TestQueryShape(t *testing.T) {
 	hasa = Tag(hasa, "top")
 
 	shape := make(map[string]interface{})
-	OutputQueryShapeForIterator(hasa, qs, shape)
+	giterator.OutputQueryShapeForIterator(hasa, qs, shape)
 
-	nodes := shape["nodes"].([]Node)
+	nodes := shape["nodes"].([]giterator.Node)
 	if len(nodes) != 3 {
 		t.Errorf("Failed to get correct number of nodes, got:%d expect:4", len(nodes))
 	}
-	links := shape["links"].([]Link)
+	links := shape["links"].([]giterator.Link)
 	if len(nodes) != 3 {
 		t.Errorf("Failed to get correct number of links, got:%d expect:1", len(links))
 	}
 
 	// Nodes should be correctly tagged.
-	nodes = shape["nodes"].([]Node)
+	nodes = shape["nodes"].([]giterator.Node)
 	for i, expect := range [][]string{{"tag"}, nil, {"top"}} {
 		if !reflect.DeepEqual(nodes[i].Tags, expect) {
 			t.Errorf("Failed to get correct tag for node[%d], got:%s expect:%s", i, nodes[i].Tags, expect)
@@ -72,8 +73,8 @@ func TestQueryShape(t *testing.T) {
 	}
 
 	// Link should be correctly typed.
-	nodes = shape["nodes"].([]Node)
-	link := shape["links"].([]Link)[0]
+	nodes = shape["nodes"].([]giterator.Node)
+	link := shape["links"].([]giterator.Link)[0]
 	if link.Source != nodes[2].ID {
 		t.Errorf("Failed to get correct link source, got:%v expect:%v", link.Source, nodes[2].ID)
 	}
@@ -101,17 +102,17 @@ func TestQueryShape(t *testing.T) {
 	pred := NewFixed(qs.ValueOf(quad.Raw("name")))
 
 	and := NewAnd()
-	and.AddSubIterator(NewLinksTo(qs, andInternal, quad.Subject))
-	and.AddSubIterator(NewLinksTo(qs, pred, quad.Predicate))
+	and.AddSubIterator(giterator.NewLinksTo(qs, andInternal, quad.Subject))
+	and.AddSubIterator(giterator.NewLinksTo(qs, pred, quad.Predicate))
 
 	shape = make(map[string]interface{})
-	OutputQueryShapeForIterator(NewHasA(qs, and, quad.Object), qs, shape)
+	giterator.OutputQueryShapeForIterator(giterator.NewHasA(qs, and, quad.Object), qs, shape)
 
-	links = shape["links"].([]Link)
+	links = shape["links"].([]giterator.Link)
 	if len(links) != 3 {
 		t.Errorf("Failed to find the correct number of links, got:%d expect:3", len(links))
 	}
-	nodes = shape["nodes"].([]Node)
+	nodes = shape["nodes"].([]giterator.Node)
 	if len(nodes) != 7 {
 		t.Errorf("Failed to find the correct number of nodes, got:%d expect:7", len(nodes))
 	}

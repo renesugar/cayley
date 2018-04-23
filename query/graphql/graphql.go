@@ -16,6 +16,7 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/path"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/query"
 )
@@ -123,13 +124,8 @@ type field struct {
 func (f field) isSave() bool { return len(f.Has)+len(f.Fields) == 0 && !f.AllFields }
 
 type object struct {
-	id     graph.Value
+	id     values.Ref
 	fields map[string]interface{}
-}
-
-func buildIterator(qs graph.QuadStore, p *path.Path) graph.Iterator {
-	it, _ := p.BuildIterator().Optimize()
-	return it
 }
 
 func iterateObject(ctx context.Context, qs graph.QuadStore, f *field, p *path.Path) (out []map[string]interface{}, _ error) {
@@ -188,7 +184,7 @@ func iterateObject(ctx context.Context, qs graph.QuadStore, f *field, p *path.Pa
 	if f.AllFields {
 		tail()
 
-		it := buildIterator(qs, p)
+		it := p.BuildIteratorOn(qs)
 		defer it.Close()
 
 		// we don't care about alternative paths to nodes here, so we will not call NextPath
@@ -256,7 +252,7 @@ func iterateObject(ctx context.Context, qs graph.QuadStore, f *field, p *path.Pa
 	tail()
 
 	// first, collect result node ids and any tags associated with it (flat values)
-	it := buildIterator(qs, p)
+	it := p.BuildIteratorOn(qs)
 	defer it.Close()
 
 	var results []object
@@ -269,12 +265,12 @@ func iterateObject(ctx context.Context, qs graph.QuadStore, f *field, p *path.Pa
 		if !it.Next(ctx) {
 			break
 		}
-		fields := make(map[string][]graph.Value)
+		fields := make(map[string][]values.Ref)
 
-		tags := make(map[string]graph.Value)
+		tags := make(map[string]values.Ref)
 		it.TagResults(tags)
 		for k, v := range tags {
-			fields[k] = []graph.Value{v}
+			fields[k] = []values.Ref{v}
 		}
 		for it.NextPath(ctx) {
 			select {
@@ -282,13 +278,13 @@ func iterateObject(ctx context.Context, qs graph.QuadStore, f *field, p *path.Pa
 				return out, ctx.Err()
 			default:
 			}
-			tags = make(map[string]graph.Value)
+			tags = make(map[string]values.Ref)
 			it.TagResults(tags)
 		dedup:
 			for k, v := range tags {
 				vals := fields[k]
 				for _, v2 := range vals {
-					if graph.ToKey(v) == graph.ToKey(v2) {
+					if values.ToKey(v) == values.ToKey(v2) {
 						continue dedup
 					}
 				}
@@ -327,7 +323,7 @@ func iterateObject(ctx context.Context, qs graph.QuadStore, f *field, p *path.Pa
 				continue // skip flat values
 			}
 			// start from saved id for a field node
-			p2 := path.StartPathNodes(qs, r.id)
+			p2 := path.StartPathRefs(r.id)
 			if len(f2.Labels) != 0 {
 				p2 = p2.LabelContext(f2.Labels)
 			}
@@ -369,7 +365,7 @@ func iterateObject(ctx context.Context, qs graph.QuadStore, f *field, p *path.Pa
 func (q *Query) Execute(ctx context.Context, qs graph.QuadStore) (map[string]interface{}, error) {
 	out := make(map[string]interface{})
 	for _, f := range q.fields {
-		arr, err := iterateObject(ctx, qs, &f, path.StartPath(qs))
+		arr, err := iterateObject(ctx, qs, &f, path.StartPath())
 		if err != nil {
 			return out, err
 		}

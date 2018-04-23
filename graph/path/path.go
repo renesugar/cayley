@@ -73,44 +73,33 @@ func (c pathContext) copy() pathContext {
 // or a concrete path, consisting of a morphism and an underlying QuadStore.
 type Path struct {
 	stack       []morphism
-	qs          graph.QuadStore // Optionally. A nil qs is equivalent to a morphism.
 	baseContext pathContext
 }
 
-// IsMorphism returns whether this Path is a morphism.
-func (p *Path) IsMorphism() bool { return p.qs == nil }
-
 // StartMorphism creates a new Path with no underlying QuadStore.
 func StartMorphism(nodes ...quad.Value) *Path {
-	return StartPath(nil, nodes...)
+	return StartPath(nodes...)
 }
 
-func newPath(qs graph.QuadStore, m ...morphism) *Path {
-	qs = graph.Unwrap(qs)
+func newPath(m ...morphism) *Path {
 	return &Path{
 		stack: m,
-		qs:    qs,
 	}
 }
 
-// StartPath creates a new Path from a set of nodes and an underlying QuadStore.
-func StartPath(qs graph.QuadStore, nodes ...quad.Value) *Path {
-	return newPath(qs, isMorphism(nodes...))
+// StartPath creates a new Path from a set of nodes.
+func StartPath(nodes ...quad.Value) *Path {
+	return newPath(isMorphism(nodes...))
 }
 
-// StartPathNodes creates a new Path from a set of nodes and an underlying QuadStore.
-func StartPathNodes(qs graph.QuadStore, nodes ...values.Ref) *Path {
-	return newPath(qs, isNodeMorphism(nodes...))
-}
-
-// PathFromIterator creates a new Path from a set of nodes contained in iterator.
-func PathFromIterator(qs graph.QuadStore, it iterator.Iterator) *Path {
-	return newPath(qs, iteratorMorphism(it))
+// StartPathRefs creates a new Path from a set of nodes.
+func StartPathRefs(nodes ...values.Ref) *Path {
+	return newPath(isNodeMorphism(nodes...))
 }
 
 // NewPath creates a new, empty Path.
-func NewPath(qs graph.QuadStore) *Path {
-	return newPath(qs)
+func NewPath() *Path {
+	return newPath()
 }
 
 // Clone returns a clone of the current path.
@@ -118,7 +107,6 @@ func (p *Path) Clone() *Path {
 	stack := p.stack
 	return &Path{
 		stack:       stack[:len(stack):len(stack)],
-		qs:          p.qs,
 		baseContext: p.baseContext,
 	}
 }
@@ -130,14 +118,13 @@ func (p *Path) clone() *Path {
 	p.stack = stack[:len(stack):len(stack)]
 	return &Path{
 		stack:       stack,
-		qs:          p.qs,
 		baseContext: p.baseContext,
 	}
 }
 
 // Reverse returns a new Path that is the reverse of the current one.
 func (p *Path) Reverse() *Path {
-	newPath := NewPath(p.qs)
+	newPath := NewPath()
 	ctx := &newPath.baseContext
 	for i := len(p.stack) - 1; i >= 0; i-- {
 		var revMorphism morphism
@@ -179,7 +166,7 @@ func (p *Path) RegexWithRefs(pattern *regexp.Regexp) *Path {
 }
 
 // Filter represents the nodes that are passing comparison with provided value.
-func (p *Path) Filter(op iterator.Operator, node quad.Value) *Path {
+func (p *Path) Filter(op shape.CmpOperator, node quad.Value) *Path {
 	return p.Filters(shape.Comparison{Op: op, Val: node})
 }
 
@@ -477,7 +464,7 @@ func (p *Path) LabelContextWithTags(tags []string, via ...interface{}) *Path {
 //  // Will return "bob" iff "bob" is cool
 //  StartPath(qs, "bob").Tag("person_tag").Out("status").Is("cool").Back("person_tag")
 func (p *Path) Back(tag string) *Path {
-	newPath := NewPath(p.qs)
+	newPath := NewPath()
 	i := len(p.stack) - 1
 	ctx := &newPath.baseContext
 	for {
@@ -504,14 +491,6 @@ func (p *Path) Back(tag string) *Path {
 // call this with a full path (not a morphism), since a morphism does not have
 // the ability to fetch the underlying quads.  This function will panic if
 // called with a morphism (i.e. if p.IsMorphism() is true).
-func (p *Path) BuildIterator() iterator.Iterator {
-	if p.IsMorphism() {
-		panic("Building an iterator from a morphism. Bind a QuadStore with BuildIteratorOn(qs)")
-	}
-	return p.BuildIteratorOn(p.qs)
-}
-
-// BuildIteratorOn will return an iterator for this path on the given QuadStore.
 func (p *Path) BuildIteratorOn(qs graph.QuadStore) iterator.Iterator {
 	return query.BuildIterator(qs, p.Shape())
 }
@@ -520,17 +499,10 @@ func (p *Path) BuildIteratorOn(qs graph.QuadStore) iterator.Iterator {
 // function that, when given a QuadStore and an existing Iterator, will
 // return a new Iterator that yields the subset of values from the existing
 // iterator matched by the current Path.
-func (p *Path) Morphism() graph.ApplyMorphism {
-	return func(qs graph.QuadStore, it iterator.Iterator) iterator.Iterator {
-		return p.ShapeFrom(&iteratorShape{it: it}).BuildIterator(qs)
-	}
-}
-
-// MorphismFor is the same as Morphism but binds returned function to a specific QuadStore.
-func (p *Path) MorphismFor(qs graph.QuadStore) iterator.Morphism {
-	return func(it iterator.Iterator) iterator.Iterator {
-		return p.ShapeFrom(&iteratorShape{it: it}).BuildIterator(qs)
-	}
+func (p *Path) Morphism() shape.Morphism {
+	return shape.MorphismFunc(func(in shape.Shape) shape.Shape {
+		return p.ShapeFrom(in)
+	})
 }
 
 // Skip will omit a number of values from result set.
@@ -545,15 +517,9 @@ func (p *Path) Limit(v int64) *Path {
 	return p
 }
 
-// Count will count a number of results as it's own result set.
-func (p *Path) Count() *Path {
-	p.stack = append(p.stack, countMorphism())
-	return p
-}
-
 // Iterate is an shortcut for graph.Iterate.
-func (p *Path) Iterate(ctx context.Context) *graph.IterateChain {
-	return query.Iterate(ctx, p.qs, p.Shape())
+func (p *Path) Iterate(ctx context.Context, qs graph.QuadStore) *graph.IterateChain {
+	return query.Iterate(ctx, qs, p.Shape())
 }
 func (p *Path) Shape() shape.Shape {
 	return p.ShapeFrom(gshape.AllNodes{})

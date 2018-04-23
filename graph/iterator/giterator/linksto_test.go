@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package giterator
+package giterator_test
 
 import (
 	"context"
@@ -20,6 +20,7 @@ import (
 
 	"github.com/cayleygraph/cayley/graph/graphmock"
 	. "github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/iterator/giterator"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/query/shape"
 )
@@ -36,7 +37,7 @@ func TestLinksTo(t *testing.T) {
 		t.Fatalf("Failed to return correct value, got:%v expect:1", val)
 	}
 	fixed.Add(val)
-	lto := NewLinksTo(qs, fixed, quad.Object)
+	lto := giterator.NewLinksTo(qs, fixed, quad.Object)
 	if !lto.Next(ctx) {
 		t.Error("At least one quad matches the fixed object")
 	}

@@ -17,113 +17,145 @@ package iterator_test
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
-	"github.com/cayleygraph/cayley/graph"
-	"github.com/cayleygraph/cayley/graph/graphmock"
 	"github.com/cayleygraph/cayley/graph/iterator"
+	"github.com/cayleygraph/cayley/graph/iterator/giterator"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/query/shape"
+	"github.com/stretchr/testify/require"
 )
+
+type stringQS []quad.Value
+
+func (qs stringQS) valueAt(i int) quad.Value {
+	return qs[i]
+}
+
+func (qs stringQS) ValueOf(s quad.Value) values.Ref {
+	if s == nil {
+		return nil
+	}
+	for i := range qs {
+		if va := qs.valueAt(i); va != nil && s.String() == va.String() {
+			return iterator.Int64Node(i)
+		}
+	}
+	return nil
+}
+
+func (qs stringQS) NameOf(v values.Ref) quad.Value {
+	switch v.(type) {
+	case iterator.Int64Node:
+		i := int(v.(iterator.Int64Node))
+		if i < 0 || i >= len(qs) {
+			return nil
+		}
+		return qs.valueAt(i)
+	default:
+		return nil
+	}
+}
 
 var (
-	simpleStore = &graphmock.Oldstore{Data: []string{"0", "1", "2", "3", "4", "5"}, Parse: true}
-	stringStore = &graphmock.Oldstore{Data: []string{"foo", "bar", "baz", "echo"}, Parse: true}
-	mixedStore  = &graphmock.Oldstore{Data: []string{"0", "1", "2", "3", "4", "5", "foo", "bar", "baz", "echo"}, Parse: true}
+	simpleStore stringQS
+	stringStore stringQS
+	mixedStore  stringQS
 )
 
-func simpleFixedIterator() shape.Values {
-	var f shape.Values
-	for i := 0; i < 5; i++ {
-		f.Add(quad.Int(i))
+func init() {
+	for i := 0; i <= 5; i++ {
+		simpleStore = append(simpleStore, quad.Int(i))
 	}
-	return f
+	for _, s := range []string{
+		"foo", "bar", "baz", "echo",
+	} {
+		stringStore = append(stringStore, quad.String(s))
+	}
+	mixedStore = append(mixedStore, simpleStore...)
+	mixedStore = append(mixedStore, stringStore...)
+}
+
+func simpleFixedIterator() shape.Values {
+	return shape.Values(simpleStore[:5])
 }
 
 func stringFixedIterator() shape.Values {
-	var f shape.Values
-	for _, value := range stringStore.Data {
-		f.Add(quad.String(value))
-	}
-	return f
+	return shape.Values(stringStore)
 }
 
 func mixedFixedIterator() shape.Values {
-	var f shape.Values
-	for i := 0; i < len(mixedStore.Data); i++ {
-		f.Add(quad.Int(i))
-	}
-	return f
+	return shape.Values(mixedStore)
 }
 
 var comparisonTests = []struct {
-	message  string
+	name     string
 	operand  quad.Value
-	operator iterator.Operator
+	operator shape.CmpOperator
 	expect   []quad.Value
 	shape    func() shape.Values
 }{
 	{
-		message:  "successful int64 less than comparison",
+		name:     "int64 less",
 		operand:  quad.Int(3),
-		operator: iterator.CompareLT,
+		operator: shape.CompareLT,
 		expect:   []quad.Value{quad.Int(0), quad.Int(1), quad.Int(2)},
 		shape:    simpleFixedIterator,
 	},
 	{
-		message:  "empty int64 less than comparison",
+		name:     "empty int64 less",
 		operand:  quad.Int(0),
-		operator: iterator.CompareLT,
+		operator: shape.CompareLT,
 		expect:   nil,
 		shape:    simpleFixedIterator,
 	},
 	{
-		message:  "successful int64 greater than comparison",
+		name:     "int64 greater",
 		operand:  quad.Int(2),
-		operator: iterator.CompareGT,
+		operator: shape.CompareGT,
 		expect:   []quad.Value{quad.Int(3), quad.Int(4)},
 		shape:    simpleFixedIterator,
 	},
 	{
-		message:  "successful int64 greater than or equal comparison",
+		name:     "int64 greater or equal",
 		operand:  quad.Int(2),
-		operator: iterator.CompareGTE,
+		operator: shape.CompareGTE,
 		expect:   []quad.Value{quad.Int(2), quad.Int(3), quad.Int(4)},
 		shape:    simpleFixedIterator,
 	},
 	{
-		message:  "successful int64 greater than or equal comparison (mixed)",
+		name:     "int64 greater or equal (mixed)",
 		operand:  quad.Int(2),
-		operator: iterator.CompareGTE,
+		operator: shape.CompareGTE,
 		expect:   []quad.Value{quad.Int(2), quad.Int(3), quad.Int(4), quad.Int(5)},
 		shape:    mixedFixedIterator,
 	},
 	{
-		message:  "successful string less than comparison",
+		name:     "string less",
 		operand:  quad.String("echo"),
-		operator: iterator.CompareLT,
+		operator: shape.CompareLT,
 		expect:   []quad.Value{quad.String("bar"), quad.String("baz")},
 		shape:    stringFixedIterator,
 	},
 	{
-		message:  "empty string less than comparison",
+		name:     "empty string less",
 		operand:  quad.String(""),
-		operator: iterator.CompareLT,
+		operator: shape.CompareLT,
 		expect:   nil,
 		shape:    stringFixedIterator,
 	},
 	{
-		message:  "successful string greater than comparison",
+		name:     "string greater",
 		operand:  quad.String("echo"),
-		operator: iterator.CompareGT,
+		operator: shape.CompareGT,
 		expect:   []quad.Value{quad.String("foo")},
 		shape:    stringFixedIterator,
 	},
 	{
-		message:  "successful string greater than or equal comparison",
+		name:     "string greater or equal",
 		operand:  quad.String("echo"),
-		operator: iterator.CompareGTE,
+		operator: shape.CompareGTE,
 		expect:   []quad.Value{quad.String("foo"), quad.String("echo")},
 		shape:    stringFixedIterator,
 	},
@@ -132,30 +164,30 @@ var comparisonTests = []struct {
 func TestValueComparison(t *testing.T) {
 	ctx := context.TODO()
 	for _, test := range comparisonTests {
-		vc := iterator.NewComparison(test.shape().BuildIterator(), test.operator, test.operand)
+		t.Run(test.name, func(t *testing.T) {
+			vc := shape.Compare(test.shape(), test.operator, test.operand).BuildIterator()
 
-		var got []quad.Value
-		for vc.Next(ctx) {
-			got = append(got, vc.Result())
-		}
-		if !reflect.DeepEqual(got, test.expect) {
-			t.Errorf("Failed to show %s, got:%q expect:%q", test.message, got, test.expect)
-		}
+			var got []quad.Value
+			for vc.Next(ctx) {
+				got = append(got, vc.Result())
+			}
+			require.Equal(t, test.expect, got)
+		})
 	}
 }
 
 var vciContainsTests = []struct {
-	message  string
-	operator iterator.Operator
+	name     string
+	operator shape.CmpOperator
 	check    quad.Value
 	expect   bool
-	qs       graph.Namer
+	qs       giterator.Namer
 	val      quad.Value
 	shape    func() shape.Values
 }{
 	{
-		message:  "1 is less than 2",
-		operator: iterator.CompareGTE,
+		name:     "1 is less than 2",
+		operator: shape.CompareGTE,
 		check:    quad.Int(1),
 		expect:   false,
 		qs:       simpleStore,
@@ -163,8 +195,8 @@ var vciContainsTests = []struct {
 		shape:    simpleFixedIterator,
 	},
 	{
-		message:  "2 is greater than or equal to 2",
-		operator: iterator.CompareGTE,
+		name:     "2 is greater than or equal to 2",
+		operator: shape.CompareGTE,
 		check:    quad.Int(2),
 		expect:   true,
 		qs:       simpleStore,
@@ -172,8 +204,8 @@ var vciContainsTests = []struct {
 		shape:    simpleFixedIterator,
 	},
 	{
-		message:  "3 is greater than or equal to 2",
-		operator: iterator.CompareGTE,
+		name:     "3 is greater than or equal to 2",
+		operator: shape.CompareGTE,
 		check:    quad.Int(3),
 		expect:   true,
 		qs:       simpleStore,
@@ -181,8 +213,8 @@ var vciContainsTests = []struct {
 		shape:    simpleFixedIterator,
 	},
 	{
-		message:  "5 is absent from iterator",
-		operator: iterator.CompareGTE,
+		name:     "5 is absent from iterator",
+		operator: shape.CompareGTE,
 		check:    quad.Int(5),
 		expect:   false,
 		qs:       simpleStore,
@@ -190,8 +222,8 @@ var vciContainsTests = []struct {
 		shape:    simpleFixedIterator,
 	},
 	{
-		message:  "foo is greater than or equal to echo",
-		operator: iterator.CompareGTE,
+		name:     "foo is greater than or equal to echo",
+		operator: shape.CompareGTE,
 		check:    quad.String("foo"),
 		expect:   true,
 		qs:       stringStore,
@@ -199,8 +231,8 @@ var vciContainsTests = []struct {
 		shape:    stringFixedIterator,
 	},
 	{
-		message:  "echo is greater than or equal to echo",
-		operator: iterator.CompareGTE,
+		name:     "echo is greater than or equal to echo",
+		operator: shape.CompareGTE,
 		check:    quad.String("echo"),
 		expect:   true,
 		qs:       stringStore,
@@ -208,8 +240,8 @@ var vciContainsTests = []struct {
 		shape:    stringFixedIterator,
 	},
 	{
-		message:  "foo is missing from the iterator",
-		operator: iterator.CompareLTE,
+		name:     "foo is missing from the iterator",
+		operator: shape.CompareLTE,
 		check:    quad.String("foo"),
 		expect:   false,
 		qs:       stringStore,
@@ -221,43 +253,21 @@ var vciContainsTests = []struct {
 func TestVCIContains(t *testing.T) {
 	ctx := context.TODO()
 	for _, test := range vciContainsTests {
-		vc := iterator.NewComparison(test.shape().BuildIterator(), test.operator, test.val)
-		if vc.Contains(ctx, test.check) != test.expect {
-			t.Errorf("Failed to show %s", test.message)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			vc := shape.Compare(test.shape(), test.operator, test.val).BuildIterator()
+			require.True(t, vc.Contains(ctx, test.check) == test.expect)
+		})
 	}
 }
 
-var comparisonIteratorTests = []struct {
-	message string
-	qs      graph.Namer
-	val     quad.Value
-}{
-	{
-		message: "2 is absent from iterator",
-		qs:      simpleStore,
-		val:     quad.Int(2),
-	},
-	{
-		message: "'missing' is absent from iterator",
-		qs:      stringStore,
-		val:     quad.String("missing"),
-	},
-}
-
-func TestComparisonIteratorErr(t *testing.T) {
+func TestValueFilterIteratorErr(t *testing.T) {
 	ctx := context.TODO()
 	wantErr := errors.New("unique")
 	errIt := newTestVIterator(false, wantErr)
 
-	for _, test := range comparisonIteratorTests {
-		vc := iterator.NewComparison(errIt, iterator.CompareLT, test.val)
-
-		if vc.Next(ctx) != false {
-			t.Errorf("Comparison iterator did not pass through initial 'false': %s", test.message)
-		}
-		if vc.Err() != wantErr {
-			t.Errorf("Comparison iterator did not pass through underlying Err: %s", test.message)
-		}
-	}
+	vc := iterator.NewValueFilter(errIt, func(_ quad.Value) (bool, error) {
+		return true, nil
+	})
+	require.False(t, vc.Next(ctx))
+	require.Equal(t, wantErr, vc.Err())
 }

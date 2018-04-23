@@ -9,13 +9,14 @@ import (
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/query/shape"
+	"github.com/cayleygraph/cayley/query/shape/gshape"
 )
 
 var _ shape.Optimizer = (*QuadStore)(nil)
 
 func (qs *QuadStore) OptimizeShape(s shape.Shape) (shape.Shape, bool) {
 	switch s := s.(type) {
-	case shape.Quads:
+	case gshape.Quads:
 		return qs.optimizeQuads(s)
 	case shape.Filter:
 		return qs.optimizeFilter(s)
@@ -88,13 +89,17 @@ func stoi(s string) int64 {
 func (opt Options) toFieldFilter(c shape.Comparison) ([]FieldFilter, bool) {
 	var op FilterOp
 	switch c.Op {
-	case iterator.CompareGT:
+	case shape.CompareEQ:
+		op = Equal
+	case shape.CompareNEQ:
+		op = NotEqual
+	case shape.CompareGT:
 		op = GT
-	case iterator.CompareGTE:
+	case shape.CompareGTE:
 		op = GTE
-	case iterator.CompareLT:
+	case shape.CompareLT:
 		op = LT
-	case iterator.CompareLTE:
+	case shape.CompareLTE:
 		op = LTE
 	default:
 		return nil, false
@@ -147,7 +152,7 @@ func (opt Options) toFieldFilter(c shape.Comparison) ([]FieldFilter, bool) {
 }
 
 func (qs *QuadStore) optimizeFilter(s shape.Filter) (shape.Shape, bool) {
-	if _, ok := s.From.(shape.AllNodes); !ok {
+	if _, ok := s.From.(gshape.AllNodes); !ok {
 		return s, false
 	}
 	var (
@@ -193,10 +198,10 @@ func (qs *QuadStore) optimizeFilter(s shape.Filter) (shape.Shape, bool) {
 	return ns, true
 }
 
-func (qs *QuadStore) optimizeQuads(s shape.Quads) (shape.Shape, bool) {
+func (qs *QuadStore) optimizeQuads(s gshape.Quads) (shape.Shape, bool) {
 	var (
 		links []Linkage
-		left  []shape.QuadFilter
+		left  []gshape.QuadFilter
 	)
 	for _, f := range s {
 		if v, ok := shape.One(f.Values); ok {
@@ -212,7 +217,7 @@ func (qs *QuadStore) optimizeQuads(s shape.Quads) (shape.Shape, bool) {
 	}
 	var ns shape.Shape = Quads{Links: links}
 	if len(left) != 0 {
-		ns = shape.Intersect{ns, shape.Quads(left)}
+		ns = gshape.Intersect{ns, gshape.Quads(left)}
 	}
 	return s, true
 }
@@ -222,7 +227,7 @@ func (qs *QuadStore) optimizePage(s shape.Page) (shape.Shape, bool) {
 		return s, false
 	}
 	switch f := s.From.(type) {
-	case shape.AllNodes:
+	case gshape.AllNodes:
 		return Shape{Collection: colNodes, Limit: s.Limit}, false
 	case Shape:
 		s.ApplyPage(shape.Page{Limit: f.Limit})

@@ -215,13 +215,14 @@ func (f Table) NameSQL() string {
 type CmpOp string
 
 const (
-	OpEqual  = CmpOp("=")
-	OpGT     = CmpOp(">")
-	OpGTE    = CmpOp(">=")
-	OpLT     = CmpOp("<")
-	OpLTE    = CmpOp("<=")
-	OpIsNull = CmpOp("IS NULL")
-	OpIsTrue = CmpOp("IS true")
+	OpEqual    = CmpOp("=")
+	OpNotEqual = CmpOp("<>")
+	OpGT       = CmpOp(">")
+	OpGTE      = CmpOp(">=")
+	OpLT       = CmpOp("<")
+	OpLTE      = CmpOp("<=")
+	OpIsNull   = CmpOp("IS NULL")
+	OpIsTrue   = CmpOp("IS true")
 )
 
 type Expr interface {

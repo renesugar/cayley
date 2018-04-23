@@ -21,10 +21,10 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/kv/kvtest"
-	ukv "github.com/nwca/uda/kv"
+	hkv "github.com/nwca/hidalgo/kv"
 )
 
-func makeLeveldb(t testing.TB) (ukv.KV, graph.Options, func()) {
+func makeLeveldb(t testing.TB) (hkv.KV, graph.Options, func()) {
 	tmpDir, err := ioutil.TempDir(os.TempDir(), "cayley_test_"+Type)
 	if err != nil {
 		t.Fatalf("Could not create working directory: %v", err)

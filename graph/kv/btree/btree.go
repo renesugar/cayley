@@ -16,28 +16,19 @@ package btree
 
 import (
 	"github.com/cayleygraph/cayley/graph"
-	"github.com/cayleygraph/cayley/graph/kv"
-	ukv "github.com/nwca/uda/kv"
-	"github.com/nwca/uda/kv/flat"
-	"github.com/nwca/uda/kv/flat/btree"
+	hkv "github.com/nwca/hidalgo/kv"
+	"github.com/nwca/hidalgo/kv/flat"
+	"github.com/nwca/hidalgo/kv/flat/btree"
 )
-
-func init() {
-	kv.Register(Type, kv.Registration{
-		NewFunc:      Create,
-		InitFunc:     Create,
-		IsPersistent: false,
-	})
-}
 
 const (
-	Type = "btree"
+	Type = btree.Name
 )
 
-func Create(path string, _ graph.Options) (ukv.KV, error) {
+func Create(path string, _ graph.Options) (hkv.KV, error) {
 	return New(), nil
 }
 
-func New() ukv.KV {
-	return flat.New(btree.New(), '/')
+func New() hkv.KV {
+	return flat.Upgrade(btree.New())
 }

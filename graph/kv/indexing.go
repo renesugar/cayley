@@ -30,7 +30,7 @@ import (
 	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/quad/pquads"
-	"github.com/nwca/uda/kv"
+	"github.com/nwca/hidalgo/kv"
 	"github.com/tylertreat/BoomFilters"
 )
 

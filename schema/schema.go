@@ -15,7 +15,9 @@ import (
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/graph/path"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query/shape"
 	"github.com/cayleygraph/cayley/voc"
 	"github.com/cayleygraph/cayley/voc/rdf"
 )
@@ -215,18 +217,15 @@ func checkFieldType(ftp reflect.Type) error {
 // Optimize flags controls an optimization step performed before queries.
 var Optimize = true
 
-func iteratorFromPath(qs graph.QuadStore, root graph.Iterator, p *path.Path) (graph.Iterator, error) {
+func iteratorFromPath(qs graph.QuadStore, root iterator.Iterator, p *path.Path) (iterator.Iterator, error) {
 	it := p.BuildIteratorOn(qs)
 	if root != nil {
 		it = iterator.NewAnd(root, it)
 	}
-	if Optimize {
-		it, _ = it.Optimize()
-	}
 	return it, nil
 }
 
-func (c *Config) iteratorForType(qs graph.QuadStore, root graph.Iterator, rt reflect.Type, rootOnly bool) (graph.Iterator, error) {
+func (c *Config) iteratorForType(qs graph.QuadStore, root iterator.Iterator, rt reflect.Type, rootOnly bool) (iterator.Iterator, error) {
 	p, err := c.makePathForType(rt, "", rootOnly)
 	if err != nil {
 		return nil, err
@@ -512,7 +511,7 @@ var (
 	errRequiredFieldIsMissing = errors.New("required field is missing")
 )
 
-func (c *Config) loadToValue(ctx context.Context, qs graph.QuadStore, dst reflect.Value, depth int, m map[string][]graph.Value, tagPref string) error {
+func (c *Config) loadToValue(ctx context.Context, qs graph.QuadStore, dst reflect.Value, depth int, m map[string][]values.Ref, tagPref string) error {
 	if ctx == nil {
 		ctx = context.TODO()
 	}
@@ -588,8 +587,10 @@ func (c *Config) loadToValue(ctx context.Context, qs graph.QuadStore, dst reflec
 					return err
 				}
 			} else {
-				fv := qs.NameOf(fv)
-				if fv == nil {
+				fv, err := graph.ValueOf(ctx, qs, fv)
+				if err != nil {
+					return err
+				} else if fv == nil {
 					continue
 				}
 				sv = reflect.ValueOf(fv)
@@ -607,7 +608,7 @@ func isNative(rt reflect.Type) bool { // TODO(dennwc): replace
 	return ok
 }
 
-func keysEqual(v1, v2 graph.Value) bool {
+func keysEqual(v1, v2 values.Ref) bool {
 	type key interface {
 		Key() interface{}
 	}
@@ -695,13 +696,9 @@ func (c *Config) LoadToDepth(ctx context.Context, qs graph.QuadStore, dst interf
 	if dst == nil {
 		return fmt.Errorf("nil destination object")
 	}
-	var it graph.Iterator
+	var it iterator.Iterator
 	if len(ids) != 0 {
-		fixed := iterator.NewFixed()
-		for _, id := range ids {
-			fixed.Add(qs.ValueOf(id))
-		}
-		it = fixed
+		it = qs.ToRef(shape.Values(ids)).BuildIterator()
 	}
 	var rv reflect.Value
 	if v, ok := dst.(reflect.Value); ok {
@@ -714,7 +711,7 @@ func (c *Config) LoadToDepth(ctx context.Context, qs graph.QuadStore, dst interf
 
 // LoadPathTo is the same as LoadTo, but starts loading objects from a given path.
 func (c *Config) LoadPathTo(ctx context.Context, qs graph.QuadStore, dst interface{}, p *path.Path) error {
-	return c.LoadIteratorTo(ctx, qs, reflect.ValueOf(dst), p.BuildIterator())
+	return c.LoadIteratorTo(ctx, qs, reflect.ValueOf(dst), p.BuildIteratorOn(qs))
 }
 
 // LoadIteratorTo is a lower level version of LoadTo.
@@ -723,13 +720,13 @@ func (c *Config) LoadPathTo(ctx context.Context, qs graph.QuadStore, dst interfa
 // destination value to be obtained via reflect package manually.
 //
 // Nodes iterator can be nil, All iterator will be used in this case.
-func (c *Config) LoadIteratorTo(ctx context.Context, qs graph.QuadStore, dst reflect.Value, list graph.Iterator) error {
+func (c *Config) LoadIteratorTo(ctx context.Context, qs graph.QuadStore, dst reflect.Value, list iterator.Iterator) error {
 	return c.LoadIteratorToDepth(ctx, qs, dst, -1, list)
 }
 
 // LoadIteratorToDepth is the same as LoadIteratorTo, but stops at a specified depth.
 // Negative value means unlimited depth, and zero means top level only.
-func (c *Config) LoadIteratorToDepth(ctx context.Context, qs graph.QuadStore, dst reflect.Value, depth int, list graph.Iterator) error {
+func (c *Config) LoadIteratorToDepth(ctx context.Context, qs graph.QuadStore, dst reflect.Value, depth int, list iterator.Iterator) error {
 	if depth >= 0 {
 		// 0 depth means "current level only" for user, but it's easier to make depth=0 a stop condition
 		depth++
@@ -737,7 +734,7 @@ func (c *Config) LoadIteratorToDepth(ctx context.Context, qs graph.QuadStore, ds
 	return c.loadIteratorToDepth(ctx, qs, dst, depth, list)
 }
 
-func (c *Config) loadIteratorToDepth(ctx context.Context, qs graph.QuadStore, dst reflect.Value, depth int, list graph.Iterator) error {
+func (c *Config) loadIteratorToDepth(ctx context.Context, qs graph.QuadStore, dst reflect.Value, depth int, list iterator.Iterator) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -777,7 +774,7 @@ func (c *Config) loadIteratorToDepth(ctx context.Context, qs graph.QuadStore, ds
 			return ctx.Err()
 		default:
 		}
-		mp := make(map[string]graph.Value)
+		mp := make(map[string]values.Ref)
 		it.TagResults(mp)
 		if len(mp) == 0 {
 			continue
@@ -786,9 +783,9 @@ func (c *Config) loadIteratorToDepth(ctx context.Context, qs graph.QuadStore, ds
 		if slice || chanl {
 			cur = reflect.New(et)
 		}
-		mo := make(map[string][]graph.Value, len(mp))
+		mo := make(map[string][]values.Ref, len(mp))
 		for k, v := range mp {
-			mo[k] = []graph.Value{v}
+			mo[k] = []values.Ref{v}
 		}
 		for it.NextPath(ctx) {
 			select {
@@ -796,7 +793,7 @@ func (c *Config) loadIteratorToDepth(ctx context.Context, qs graph.QuadStore, ds
 				return ctx.Err()
 			default:
 			}
-			mp = make(map[string]graph.Value)
+			mp = make(map[string]values.Ref)
 			it.TagResults(mp)
 			if len(mp) == 0 {
 				continue
@@ -804,7 +801,7 @@ func (c *Config) loadIteratorToDepth(ctx context.Context, qs graph.QuadStore, ds
 			// TODO(dennwc): replace with more efficient
 			for k, v := range mp {
 				if sl, ok := mo[k]; !ok {
-					mo[k] = []graph.Value{v}
+					mo[k] = []values.Ref{v}
 				} else if len(sl) == 1 {
 					if !keysEqual(sl[0], v) {
 						mo[k] = append(sl, v)
@@ -849,7 +846,7 @@ func (c *Config) loadIteratorToDepth(ctx context.Context, qs graph.QuadStore, ds
 	if list != nil { // FIXME: && list.Type() != graph.All {
 		// distinguish between missing object and type constraints
 		list.Reset()
-		and := iterator.NewAnd(list, qs.NodesAllIterator())
+		and := iterator.NewAnd(list, qs.AllNodes().BuildIterator())
 		defer and.Close()
 		if and.Next(ctx) {
 			return errRequiredFieldIsMissing

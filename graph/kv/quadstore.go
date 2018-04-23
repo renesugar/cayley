@@ -28,7 +28,7 @@ import (
 	"github.com/cayleygraph/cayley/internal/lru"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/quad/pquads"
-	"github.com/nwca/uda/kv"
+	"github.com/nwca/hidalgo/kv"
 	boom "github.com/tylertreat/BoomFilters"
 )
 

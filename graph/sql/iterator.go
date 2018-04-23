@@ -32,6 +32,10 @@ func (qs *QuadStore) OptimizeShape(s shape.Shape) (shape.Shape, bool) {
 	return qs.opt.OptimizeShape(s)
 }
 
+func (qs *QuadStore) OptimizeValShape(s shape.ValShape) (shape.ValShape, bool) {
+	return qs.opt.OptimizeValShape(s)
+}
+
 func (qs *QuadStore) Query(ctx context.Context, s Shape) (*sql.Rows, error) {
 	args := s.Args()
 	vals := make([]interface{}, 0, len(args))
@@ -266,11 +270,7 @@ func (it *Iterator) Size() (int64, bool) {
 	return n, true
 }
 
-func (it *Iterator) Optimize() (iterator.Iterator, bool) {
-	return it, false
-}
-
-func (it *Iterator) SubIterators() []iterator.Iterator {
+func (it *Iterator) SubIterators() []iterator.Generic {
 	return nil
 }
 

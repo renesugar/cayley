@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/cayleygraph/cayley/graph/iterator"
-	"github.com/cayleygraph/cayley/graph/shape"
 	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query/shape"
+	"github.com/cayleygraph/cayley/query/shape/gshape"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,21 +42,21 @@ var shapeCases = []struct {
 }{
 	{
 		name: "all nodes",
-		s:    shape.AllNodes{},
+		s:    gshape.AllNodes{},
 		qu:   `SELECT hash AS ` + tagNode + ` FROM nodes`,
 	},
 	{
 		name: "lookup iri",
-		s:    shape.Lookup{quad.IRI("a")},
+		s:    gshape.Lookup{quad.IRI("a")},
 		qu:   `SELECT hash AS ` + tagNode + ` FROM nodes WHERE hash = $1`,
 		args: []Value{HashOf(quad.IRI("a"))},
 	},
 	{
 		name: "gt iri",
 		s: shape.Filter{
-			From: shape.AllNodes{},
+			From: gshape.AllNodes{},
 			Filters: []shape.ValueFilter{
-				shape.Comparison{Op: iterator.CompareGT, Val: quad.IRI("a")},
+				shape.Comparison{Op: shape.CompareGT, Val: quad.IRI("a")},
 			},
 		},
 		qu:   `SELECT hash AS ` + tagNode + ` FROM nodes WHERE value_string > $1 AND iri IS true`,
@@ -65,9 +65,9 @@ var shapeCases = []struct {
 	{
 		name: "gt string",
 		s: shape.Filter{
-			From: shape.AllNodes{},
+			From: gshape.AllNodes{},
 			Filters: []shape.ValueFilter{
-				shape.Comparison{Op: iterator.CompareGT, Val: quad.String("a")},
+				shape.Comparison{Op: shape.CompareGT, Val: quad.String("a")},
 			},
 		},
 		qu:   `SELECT hash AS ` + tagNode + ` FROM nodes WHERE value_string > $1 AND iri IS NULL AND bnode IS NULL AND datatype IS NULL AND language IS NULL`,
@@ -76,9 +76,9 @@ var shapeCases = []struct {
 	{
 		name: "gt typed string",
 		s: shape.Filter{
-			From: shape.AllNodes{},
+			From: gshape.AllNodes{},
 			Filters: []shape.ValueFilter{
-				shape.Comparison{Op: iterator.CompareGT, Val: quad.TypedString{Value: "a", Type: "A"}},
+				shape.Comparison{Op: shape.CompareGT, Val: quad.TypedString{Value: "a", Type: "A"}},
 			},
 		},
 		qu:   `SELECT hash AS ` + tagNode + ` FROM nodes WHERE value_string > $1 AND datatype = $2`,
@@ -87,9 +87,9 @@ var shapeCases = []struct {
 	{
 		name: "lookup int",
 		s: shape.Filter{
-			From: shape.AllNodes{},
+			From: gshape.AllNodes{},
 			Filters: []shape.ValueFilter{
-				shape.Comparison{Op: iterator.CompareGT, Val: quad.Int(42)},
+				shape.Comparison{Op: shape.CompareGT, Val: quad.Int(42)},
 			},
 		},
 		qu:   `SELECT hash AS ` + tagNode + ` FROM nodes WHERE value_int > $1`,
@@ -97,13 +97,13 @@ var shapeCases = []struct {
 	},
 	{
 		name: "all quads",
-		s:    shape.Quads{},
+		s:    gshape.Quads{},
 		qu: `SELECT t_1.subject_hash AS __subject, t_1.predicate_hash AS __predicate, t_1.object_hash AS __object, t_1.label_hash AS __label
 	FROM quads AS t_1`,
 	},
 	{
 		name: "limit quads and skip first",
-		s:    shape.Page{From: shape.Quads{}, Limit: 100, Skip: 1},
+		s:    shape.Page{From: gshape.Quads{}, Limit: 100, Skip: 1},
 		qu: `SELECT t_1.subject_hash AS __subject, t_1.predicate_hash AS __predicate, t_1.object_hash AS __object, t_1.label_hash AS __label
 	FROM quads AS t_1
 	LIMIT 100
@@ -111,7 +111,7 @@ var shapeCases = []struct {
 	},
 	{
 		name: "quads with subject and predicate",
-		s: shape.Quads{
+		s: gshape.Quads{
 			{Dir: quad.Subject, Values: shape.Fixed{sVal("s")}},
 			{Dir: quad.Predicate, Values: shape.Fixed{sVal("p")}},
 		},
@@ -122,7 +122,7 @@ var shapeCases = []struct {
 	},
 	{
 		name: "quad actions",
-		s: shape.QuadsAction{
+		s: gshape.QuadsAction{
 			Result: quad.Subject,
 			Save: map[quad.Direction][]string{
 				quad.Object: {"o1", "o2"},
@@ -141,7 +141,7 @@ var shapeCases = []struct {
 		name: "quad actions and save",
 		s: shape.Save{
 			Tags: []string{"sub"},
-			From: shape.QuadsAction{
+			From: gshape.QuadsAction{
 				Result: quad.Subject,
 				Save: map[quad.Direction][]string{
 					quad.Object: {"o1", "o2"},
@@ -159,11 +159,11 @@ var shapeCases = []struct {
 	},
 	{
 		name: "quads with subquery",
-		s: shape.Quads{
+		s: gshape.Quads{
 			{Dir: quad.Subject, Values: shape.Fixed{sVal("s")}},
 			{
 				Dir: quad.Predicate,
-				Values: shape.QuadsAction{
+				Values: gshape.QuadsAction{
 					Result: quad.Subject,
 					Filter: map[quad.Direction]values.Ref{
 						quad.Predicate: sVal("p"),
@@ -178,13 +178,13 @@ var shapeCases = []struct {
 	},
 	{
 		name: "quads with subquery (inner tags)",
-		s: shape.Quads{
+		s: gshape.Quads{
 			{Dir: quad.Subject, Values: shape.Fixed{sVal("s")}},
 			{
 				Dir: quad.Predicate,
 				Values: shape.Save{
 					Tags: []string{"pred"},
-					From: shape.QuadsAction{
+					From: gshape.QuadsAction{
 						Result: quad.Subject,
 						Save: map[quad.Direction][]string{
 							quad.Object: {"ob"},
@@ -203,13 +203,13 @@ var shapeCases = []struct {
 	},
 	{
 		name: "quads with subquery (limit)",
-		s: shape.Quads{
+		s: gshape.Quads{
 			{Dir: quad.Subject, Values: shape.Fixed{sVal("s")}},
 			{
 				Dir: quad.Predicate,
 				Values: shape.Page{
 					Limit: 10,
-					From: shape.QuadsAction{
+					From: gshape.QuadsAction{
 						Result: quad.Subject,
 						Filter: map[quad.Direction]values.Ref{
 							quad.Predicate: sVal("p"),
@@ -226,7 +226,7 @@ var shapeCases = []struct {
 	{
 		skip: true, // TODO
 		name: "quads with subquery (inner tags + limit)",
-		s: shape.Quads{
+		s: gshape.Quads{
 			{Dir: quad.Subject, Values: shape.Fixed{sVal("s")}},
 			{
 				Dir: quad.Predicate,
@@ -234,7 +234,7 @@ var shapeCases = []struct {
 					Tags: []string{"pred"},
 					From: shape.Page{
 						Limit: 10,
-						From: shape.QuadsAction{
+						From: gshape.QuadsAction{
 							Result: quad.Subject,
 							Save: map[quad.Direction][]string{
 								quad.Object: {"ob"},
@@ -252,13 +252,13 @@ var shapeCases = []struct {
 	},
 	{
 		name: "nodes from quads",
-		s: shape.NodesFrom{
+		s: gshape.NodesFrom{
 			Dir: quad.Object,
-			Quads: shape.Quads{
+			Quads: gshape.Quads{
 				{Dir: quad.Subject, Values: shape.Fixed{sVal("s")}},
 				{
 					Dir: quad.Predicate,
-					Values: shape.QuadsAction{
+					Values: gshape.QuadsAction{
 						Result: quad.Subject,
 						Save: map[quad.Direction][]string{
 							quad.Object: {"ob"},
@@ -277,10 +277,10 @@ var shapeCases = []struct {
 	},
 	{
 		name: "intersect selects",
-		s: shape.Intersect{
+		s: gshape.Intersect{
 			shape.Save{
 				Tags: []string{"sub"},
-				From: shape.QuadsAction{
+				From: gshape.QuadsAction{
 					Result: quad.Subject,
 					Save: map[quad.Direction][]string{
 						quad.Object: {"o1"},
@@ -291,13 +291,13 @@ var shapeCases = []struct {
 					},
 				},
 			},
-			shape.NodesFrom{
+			gshape.NodesFrom{
 				Dir: quad.Object,
-				Quads: shape.Quads{
+				Quads: gshape.Quads{
 					{Dir: quad.Subject, Values: shape.Fixed{sVal("s")}},
 					{
 						Dir: quad.Predicate,
-						Values: shape.QuadsAction{
+						Values: gshape.QuadsAction{
 							Result: quad.Subject,
 							Save: map[quad.Direction][]string{
 								quad.Object: {"ob"},
@@ -317,25 +317,25 @@ var shapeCases = []struct {
 	},
 	{
 		name: "deep shape",
-		s: shape.NodesFrom{
+		s: gshape.NodesFrom{
 			Dir: quad.Object,
-			Quads: shape.Quads{
-				shape.QuadFilter{Dir: quad.Predicate, Values: shape.Fixed{sVal("s")}},
-				shape.QuadFilter{
+			Quads: gshape.Quads{
+				gshape.QuadFilter{Dir: quad.Predicate, Values: shape.Fixed{sVal("s")}},
+				gshape.QuadFilter{
 					Dir: quad.Subject,
-					Values: shape.NodesFrom{
+					Values: gshape.NodesFrom{
 						Dir: quad.Subject,
-						Quads: shape.Quads{
-							shape.QuadFilter{Dir: quad.Predicate, Values: shape.Fixed{sVal("s")}},
-							shape.QuadFilter{
+						Quads: gshape.Quads{
+							gshape.QuadFilter{Dir: quad.Predicate, Values: shape.Fixed{sVal("s")}},
+							gshape.QuadFilter{
 								Dir: quad.Object,
-								Values: shape.NodesFrom{
+								Values: gshape.NodesFrom{
 									Dir: quad.Subject,
-									Quads: shape.Quads{
-										shape.QuadFilter{Dir: quad.Predicate, Values: shape.Fixed{sVal("a")}},
-										shape.QuadFilter{
+									Quads: gshape.Quads{
+										gshape.QuadFilter{Dir: quad.Predicate, Values: shape.Fixed{sVal("a")}},
+										gshape.QuadFilter{
 											Dir: quad.Object,
-											Values: shape.QuadsAction{
+											Values: gshape.QuadsAction{
 												Result: quad.Subject,
 												Filter: map[quad.Direction]values.Ref{
 													quad.Predicate: sVal("n"),

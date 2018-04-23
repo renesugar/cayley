@@ -83,7 +83,13 @@ func filterMorphism(filt []shape.ValueFilter) morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return filterMorphism(filt), ctx },
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return shape.AddFilters(in, filt...), ctx
+			var vin shape.ValShape = gshape.RefsToValues{Refs: in}
+			if s, ok := in.(gshape.ValuesToRefs); ok {
+				vin = s.Values
+			}
+			return gshape.ValuesToRefs{
+				Values: shape.AddFilters(vin, filt...),
+			}, ctx
 		},
 	}
 }
@@ -114,10 +120,10 @@ func hasShapeMorphism(via interface{}, rev bool, nodes shape.Shape) morphism {
 // hasFilterMorphism is the set of nodes that is reachable via either a *Path, a
 // single node.(stringg) or a list of nodes.([]string) and that passes provided filters.
 func hasFilterMorphism(via interface{}, rev bool, filt []shape.ValueFilter) morphism {
-	return hasShapeMorphism(via, rev, shape.Filter{
-		From:    gshape.AllNodes{},
+	return hasShapeMorphism(via, rev, gshape.ValuesToRefs{Values: shape.Filter{
+		From:    gshape.RefsToValues{Refs: gshape.AllNodes{}},
 		Filters: filt,
-	})
+	}})
 }
 
 func tagMorphism(tags ...string) morphism {
@@ -293,20 +299,35 @@ func (s iteratorBuilder) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 	return s, false
 }
 
+type recursiveMorphism struct {
+	in        shape.Shape
+	step      shape.Morphism
+	maxDepth  int
+	depthTags []string
+}
+
+func (s recursiveMorphism) BuildIterator() iterator.Iterator {
+	// FIXME: support recursive
+	return iterator.NewError(fmt.Errorf("Recursive is not supported yet"))
+	//return iterator.NewRecursive(s.in.BuildIterator(), func(it iterator.Iterator) iterator.Iterator {
+	//	return s.step.Apply()
+	//})
+}
+
+func (s recursiveMorphism) Optimize(r shape.Optimizer) (shape.Shape, bool) {
+	return s, false // FIXME: support recursive
+}
+
 func followRecursiveMorphism(p *Path, maxDepth int, depthTags []string) morphism {
 	return morphism{
 		Reversal: func(ctx *pathContext) (morphism, *pathContext) {
 			return followRecursiveMorphism(p.Reverse(), maxDepth, depthTags), ctx
 		},
 		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return iteratorBuilder(func() iterator.Iterator {
-				in := in.BuildIterator()
-				it := iterator.NewRecursive(in, p.MorphismFor(qs), maxDepth)
-				for _, s := range depthTags {
-					it.AddDepthTag(s)
-				}
-				return it
-			}), ctx
+			return recursiveMorphism{
+				in: in, step: p.Morphism(),
+				maxDepth: maxDepth, depthTags: depthTags,
+			}, ctx
 		},
 	}
 }
@@ -424,16 +445,6 @@ func limitMorphism(v int64) morphism {
 				return in, ctx
 			}
 			return shape.Page{From: in, Limit: v}, ctx
-		},
-	}
-}
-
-// countMorphism will return count of values.
-func countMorphism() morphism {
-	return morphism{
-		Reversal: func(ctx *pathContext) (morphism, *pathContext) { return countMorphism(), ctx },
-		Apply: func(in shape.Shape, ctx *pathContext) (shape.Shape, *pathContext) {
-			return shape.Count{Values: in}, ctx
 		},
 	}
 }

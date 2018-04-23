@@ -6,13 +6,14 @@ import (
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query/shape"
 )
 
-func (qs *QuadStore) NodesAllIterator() iterator.Iterator {
+func (qs *QuadStore) AllNodes() shape.Shape {
 	return NewAllIterator(true, qs, nil)
 }
 
-func (qs *QuadStore) QuadsAllIterator() iterator.Iterator {
+func (qs *QuadStore) AllQuads() shape.Shape {
 	return NewAllIterator(false, qs, nil)
 }
 

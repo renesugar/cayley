@@ -23,6 +23,8 @@ import (
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query/shape"
+	"github.com/cayleygraph/cayley/query/shape/gshape"
 )
 
 const QuadStoreType = "memstore"
@@ -443,20 +445,11 @@ func (qs *QuadStore) Quad(index values.Ref) quad.Quad {
 	return qs.lookupQuadDirs(q)
 }
 
-func (qs *QuadStore) QuadIterator(d quad.Direction, value values.Ref) iterator.Iterator {
-	id, ok := asID(value)
-	if !ok {
-		return iterator.NewNull()
+func (qs *QuadStore) Stats() graph.Stats {
+	return graph.Stats{
+		// FIXME: this is a number of primitives
+		Links: int64(len(qs.prim)),
 	}
-	index, ok := qs.index.Get(d, id)
-	if ok && index.Len() != 0 {
-		return NewIterator(index, qs, d, id)
-	}
-	return iterator.NewNull()
-}
-
-func (qs *QuadStore) Size() int64 {
-	return int64(len(qs.prim))
 }
 
 func (qs *QuadStore) ValueOf(name quad.Value) values.Ref {
@@ -473,7 +466,7 @@ func (qs *QuadStore) ValueOf(name quad.Value) values.Ref {
 func (qs *QuadStore) NameOf(v values.Ref) quad.Value {
 	if v == nil {
 		return nil
-	} else if v, ok := v.(graph.PreFetchedValue); ok {
+	} else if v, ok := v.(values.PreFetchedValue); ok {
 		return v.NameOf()
 	}
 	n, ok := asID(v)
@@ -484,10 +477,6 @@ func (qs *QuadStore) NameOf(v values.Ref) quad.Value {
 		return nil
 	}
 	return qs.lookupVal(n)
-}
-
-func (qs *QuadStore) QuadsAllIterator() iterator.Iterator {
-	return newAllIterator(qs, false, qs.last)
 }
 
 func (qs *QuadStore) QuadDirection(val values.Ref, d quad.Direction) values.Ref {
@@ -502,8 +491,61 @@ func (qs *QuadStore) QuadDirection(val values.Ref, d quad.Direction) values.Ref 
 	return bnode(id)
 }
 
-func (qs *QuadStore) NodesAllIterator() iterator.Iterator {
-	return newAllIterator(qs, true, qs.last)
+func (qs *QuadStore) Close() error { return nil }
+
+func (qs *QuadStore) ToValue(s shape.Shape) shape.ValShape {
+	return gshape.ToValues(qs, s)
 }
 
-func (qs *QuadStore) Close() error { return nil }
+func (qs *QuadStore) ToRef(s shape.ValShape) shape.Shape {
+	return gshape.ToRefs(qs, s)
+}
+
+func (qs *QuadStore) AllNodes() shape.Shape {
+	return allPrim{qs: qs, nodes: true, last: qs.last}
+}
+
+func (qs *QuadStore) AllQuads() shape.Shape {
+	return allPrim{qs: qs, nodes: false, last: qs.last}
+}
+
+func (qs *QuadStore) QuadIterator(d quad.Direction, value values.Ref) shape.Shape {
+	id, ok := asID(value)
+	if !ok {
+		return shape.Null{}
+	}
+	index, ok := qs.index.Get(d, id)
+	if ok && index.Len() != 0 {
+		return quadDir{index: index, qs: qs, d: d, id: id}
+	}
+	return shape.Null{}
+}
+
+type allPrim struct {
+	qs    *QuadStore
+	nodes bool
+	last  int64
+}
+
+func (s allPrim) BuildIterator() iterator.Iterator {
+	return newAllIterator(s.qs, s.nodes, s.last)
+}
+
+func (s allPrim) Optimize(r shape.Optimizer) (shape.Shape, bool) {
+	return s, false
+}
+
+type quadDir struct {
+	qs    *QuadStore
+	index *Tree
+	d     quad.Direction
+	id    int64
+}
+
+func (s quadDir) BuildIterator() iterator.Iterator {
+	return NewIterator(s.index, s.qs, s.d, s.id)
+}
+
+func (s quadDir) Optimize(r shape.Optimizer) (shape.Shape, bool) {
+	return s, false
+}

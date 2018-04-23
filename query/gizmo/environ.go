@@ -23,7 +23,6 @@ import (
 
 	"github.com/dop251/goja"
 
-	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/graph/path"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/query/shape"
@@ -139,7 +138,7 @@ func twoStringType(fnc func(s1, s2 string) quad.Value) func(vm *goja.Runtime, ca
 	}
 }
 
-func cmpOpType(op iterator.Operator) func(vm *goja.Runtime, call goja.FunctionCall) goja.Value {
+func cmpOpType(op shape.CmpOperator) func(vm *goja.Runtime, call goja.FunctionCall) goja.Value {
 	return func(vm *goja.Runtime, call goja.FunctionCall) goja.Value {
 		args := exportArgs(call.Arguments)
 		if len(args) != 1 {
@@ -236,10 +235,12 @@ var defaultEnv = map[string]func(vm *goja.Runtime, call goja.FunctionCall) goja.
 		return quad.TypedString{Value: quad.String(s), Type: quad.IRI(typ)}
 	}),
 
-	"lt":    cmpOpType(iterator.CompareLT),
-	"lte":   cmpOpType(iterator.CompareLTE),
-	"gt":    cmpOpType(iterator.CompareGT),
-	"gte":   cmpOpType(iterator.CompareGTE),
+	"eq":    cmpOpType(shape.CompareEQ),
+	"neq":   cmpOpType(shape.CompareNEQ),
+	"lt":    cmpOpType(shape.CompareLT),
+	"lte":   cmpOpType(shape.CompareLTE),
+	"gt":    cmpOpType(shape.CompareGT),
+	"gte":   cmpOpType(shape.CompareGTE),
 	"regex": cmpRegexp,
 	"like":  cmpWildcard,
 }

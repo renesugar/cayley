@@ -16,6 +16,7 @@ import (
 	"github.com/cayleygraph/cayley/internal/lru"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/quad/pquads"
+	"github.com/cayleygraph/cayley/query/shape"
 )
 
 // Type string for generic sql QuadStore.
@@ -103,11 +104,11 @@ func (h *NodeHash) Scan(src interface{}) error {
 }
 
 func HashOf(s quad.Value) NodeHash {
-	return NodeHash{graph.HashOf(s)}
+	return NodeHash{values.HashOf(s)}
 }
 
 type QuadHashes struct {
-	graph.QuadHash
+	values.QuadHash
 }
 
 type QuadStore struct {
@@ -460,17 +461,17 @@ func (qs *QuadStore) Quad(val values.Ref) quad.Quad {
 	}
 }
 
-func (qs *QuadStore) QuadIterator(d quad.Direction, val values.Ref) iterator.Iterator {
+func (qs *QuadStore) QuadIterator(d quad.Direction, val values.Ref) shape.Shape {
 	v, ok := val.(Value)
 	if !ok {
-		return iterator.NewNull()
+		return shape.Null{}
 	}
 	sel := AllQuads("")
 	sel.WhereEq("", dirField(d), v)
 	return qs.NewIterator(sel)
 }
 
-func (qs *QuadStore) NodesAllIterator() iterator.Iterator {
+func (qs *QuadStore) AllNodes() iterator.Iterator {
 	return qs.NewIterator(AllNodes())
 }
 

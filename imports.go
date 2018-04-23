@@ -2,11 +2,20 @@ package cayley
 
 import (
 	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/iterator"
 	_ "github.com/cayleygraph/cayley/graph/memstore"
 	"github.com/cayleygraph/cayley/graph/path"
 	"github.com/cayleygraph/cayley/quad"
 	_ "github.com/cayleygraph/cayley/writer"
 )
+
+type Iterator = iterator.Iterator
+type QuadStore = graph.QuadStore
+type QuadWriter = graph.QuadWriter
+
+type Path = path.Path
+
+type Handle = graph.Handle
 
 var (
 	StartMorphism = path.StartMorphism

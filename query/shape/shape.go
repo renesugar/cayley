@@ -13,6 +13,12 @@ type Morphism interface {
 	Apply(Shape) Shape
 }
 
+type MorphismFunc func(Shape) Shape
+
+func (m MorphismFunc) Apply(s Shape) Shape {
+	return m(s)
+}
+
 // Shape represent a query tree shape.
 type Shape interface {
 	// BuildIterator constructs an iterator tree from a given shapes and binds it to QuadStore.
@@ -28,7 +34,7 @@ type Shape interface {
 
 type Optimizer interface {
 	OptimizeShape(s Shape) (Shape, bool)
-	OptimizeExpr(s ValShape) (ValShape, bool)
+	OptimizeValShape(s ValShape) (ValShape, bool)
 }
 
 // Composite shape can be simplified to a tree of more basic shapes.

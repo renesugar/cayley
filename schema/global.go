@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	"github.com/cayleygraph/cayley/graph"
+	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/graph/path"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/voc"
@@ -55,14 +56,14 @@ func LoadNamespaces(ctx context.Context, qs graph.QuadStore, dest *voc.Namespace
 // LoadIteratorToDepth is the same as LoadIteratorTo, but stops at a specified depth.
 //
 // Deprecated: see Config.LoadIteratorToDepth
-func LoadIteratorToDepth(ctx context.Context, qs graph.QuadStore, dst reflect.Value, depth int, list graph.Iterator) error {
+func LoadIteratorToDepth(ctx context.Context, qs graph.QuadStore, dst reflect.Value, depth int, list iterator.Iterator) error {
 	return global.LoadIteratorToDepth(ctx, qs, dst, depth, list)
 }
 
 // LoadIteratorTo is a lower level version of LoadTo.
 //
 // Deprecated: see Config.LoadIteratorTo
-func LoadIteratorTo(ctx context.Context, qs graph.QuadStore, dst reflect.Value, list graph.Iterator) error {
+func LoadIteratorTo(ctx context.Context, qs graph.QuadStore, dst reflect.Value, list iterator.Iterator) error {
 	return global.LoadIteratorToDepth(ctx, qs, dst, -1, list)
 }
 
@@ -70,7 +71,7 @@ func LoadIteratorTo(ctx context.Context, qs graph.QuadStore, dst reflect.Value, 
 //
 // Deprecated: see Config.LoadPathTo
 func LoadPathTo(ctx context.Context, qs graph.QuadStore, dst interface{}, p *path.Path) error {
-	return global.LoadIteratorTo(ctx, qs, reflect.ValueOf(dst), p.BuildIterator())
+	return global.LoadIteratorTo(ctx, qs, reflect.ValueOf(dst), p.BuildIteratorOn(qs))
 }
 
 // LoadTo will load a sub-graph of objects starting from ids (or from any nodes, if empty)

@@ -87,7 +87,7 @@ func (it *AllIterator) Result() values.Ref {
 }
 
 // No subiterators.
-func (it *AllIterator) SubIterators() []iterator.Iterator {
+func (it *AllIterator) SubIterators() []iterator.Generic {
 	return nil
 }
 

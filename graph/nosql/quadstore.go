@@ -596,7 +596,7 @@ func (qs *QuadStore) ValueOf(s quad.Value) values.Ref {
 func (qs *QuadStore) NameOf(v values.Ref) quad.Value {
 	if v == nil {
 		return nil
-	} else if v, ok := v.(graph.PreFetchedValue); ok {
+	} else if v, ok := v.(values.PreFetchedValue); ok {
 		return v.NameOf()
 	}
 	hash := v.(NodeHash)

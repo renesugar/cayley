@@ -10,8 +10,41 @@ import (
 	"github.com/cayleygraph/cayley/query/shape/gshape"
 )
 
+const debugOptimizer = false
+
 type Shape = shape.Shape
 type ValShape = shape.ValShape
+
+// On binds a query to a specific QuadStore.
+func On(qs graph.QuadStore, s Shape) Shape {
+	if s == nil {
+		return shape.Null{}
+	} else if qs == nil {
+		return s
+	}
+	s, _ = s.Optimize(bindTo{qs: qs})
+	return s
+}
+
+type bindTo struct {
+	qs graph.QuadStore
+}
+
+func (r bindTo) OptimizeShape(s Shape) (Shape, bool) {
+	if l, ok := s.(gshape.Bindable); ok {
+		s, _ = l.BindTo(r.qs).Optimize(r)
+		return s, true
+	}
+	return s, false
+}
+
+func (r bindTo) OptimizeValShape(s ValShape) (ValShape, bool) {
+	if l, ok := s.(gshape.ValBindable); ok {
+		s, _ = l.BindTo(r.qs).Optimize(r)
+		return s, true
+	}
+	return s, false
+}
 
 // Optimize applies generic optimizations for the tree.
 // If quad store is specified it will also resolve Lookups and apply any specific optimizations.
@@ -21,21 +54,15 @@ func Optimize(s Shape, qs graph.QuadStore) (Shape, bool) {
 		return nil, false
 	}
 	qs = graph.Unwrap(qs)
-	var opt bool
-	if qs != nil {
-		// resolve all lookups earlier
-		s, opt = s.Optimize(resolveValues{qs: qs})
-	}
 	if s == nil {
 		return shape.Null{}, true
 	}
 	// generic optimizations
-	var opt1 bool
-	s, opt1 = s.Optimize(nil)
+	var opt bool
+	s, opt = s.Optimize(nil)
 	if s == nil {
 		return shape.Null{}, true
 	}
-	opt = opt || opt1
 	// apply quadstore-specific optimizations
 	if so, ok := qs.(shape.Optimizer); ok && s != nil {
 		var opt2 bool
@@ -48,35 +75,24 @@ func Optimize(s Shape, qs graph.QuadStore) (Shape, bool) {
 	return s, opt
 }
 
-type resolveValues struct {
-	qs graph.QuadStore
-}
-
-func (r resolveValues) OptimizeShape(s Shape) (Shape, bool) {
-	if l, ok := s.(gshape.Bindable); ok {
-		return l.BindTo(r.qs), true
-	}
-	return s, false
-}
-
-func (r resolveValues) OptimizeExpr(s ValShape) (ValShape, bool) {
-	return s, false
-}
-
 // BuildIterator optimizes the shape and builds a corresponding iterator tree.
 func BuildIterator(qs graph.QuadStore, s Shape) iterator.Iterator {
 	qs = graph.Unwrap(qs)
 	if s != nil {
-		if clog.V(2) {
+		if clog.V(2) || debugOptimizer {
 			clog.Infof("shape: %#v", s)
 		}
 		s, _ = Optimize(s, qs)
-		if clog.V(2) {
+		if clog.V(2) || debugOptimizer {
 			clog.Infof("optimized: %#v", s)
 		}
 	}
 	if shape.IsNull(s) {
 		return iterator.NewNull()
+	}
+	s = On(qs, s)
+	if clog.V(2) || debugOptimizer {
+		clog.Infof("bound: %#v", s)
 	}
 	return s.BuildIterator()
 }

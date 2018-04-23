@@ -17,7 +17,11 @@ import (
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/graph/path"
+	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/query"
+	"github.com/cayleygraph/cayley/query/shape"
+	"github.com/cayleygraph/cayley/query/shape/gshape"
 	"github.com/cayleygraph/cayley/voc/rdf"
 	"github.com/cayleygraph/cayley/voc/rdfs"
 	"github.com/cayleygraph/cayley/voc/schema"
@@ -213,27 +217,26 @@ type graphStreamEvent struct {
 }
 
 func (s *GraphStreamHandler) serveRawQuads(ctx context.Context, gs *GraphStream, sub, pred, obj, label []quad.Value, limit int) {
-	var it graph.Iterator
+	var qu shape.Shape
 	if len(sub)+len(pred)+len(obj)+len(label) == 0 {
-		it = s.QS.QuadsAllIterator()
+		qu = s.QS.AllNodes()
 	} else {
-		var subIt []graph.Iterator
+		var qus gshape.Quads
 		linksTo := func(d quad.Direction, vals []quad.Value) {
 			if len(vals) == 0 {
 				return
 			}
-			fixed := iterator.NewFixed()
-			for _, v := range vals {
-				fixed.Add(s.QS.ValueOf(v))
-			}
-			subIt = append(subIt, iterator.NewLinksTo(s.QS, fixed, d))
+			qus = append(qus, gshape.QuadFilter{
+				Dir: d, Values: gshape.Lookup(vals),
+			})
 		}
 		linksTo(quad.Subject, sub)
 		linksTo(quad.Predicate, pred)
 		linksTo(quad.Object, obj)
 		linksTo(quad.Label, label)
-		it = iterator.NewAnd(subIt...)
+		qu = qus
 	}
+	it := query.BuildIterator(s.QS, qu)
 	defer it.Close()
 
 	var sh, oh valHash
@@ -265,11 +268,11 @@ func shouldInline(v quad.Value) bool {
 }
 
 func (s *GraphStreamHandler) serveNodesWithProps(ctx context.Context, gs *GraphStream, limit int) {
-	propsPath := path.NewPath(s.QS).Has(iriInlinePred, quad.Bool(true))
+	propsPath := path.NewPath().Has(iriInlinePred, quad.Bool(true))
 
 	// list of predicates marked as inline properties for gephi
 	inline := make(map[quad.Value]struct{})
-	err := propsPath.Iterate(ctx).EachValue(s.QS, func(v quad.Value) {
+	err := propsPath.Iterate(ctx, s.QS).EachValue(s.QS, func(v quad.Value) {
 		inline[v] = struct{}{}
 	})
 	if err != nil {
@@ -284,7 +287,7 @@ func (s *GraphStreamHandler) serveNodesWithProps(ctx context.Context, gs *GraphS
 
 	ignore := make(map[quad.Value]struct{})
 
-	nodes := iterator.NewNot(propsPath.BuildIterator(), s.QS.NodesAllIterator())
+	nodes := iterator.NewNot(propsPath.BuildIteratorOn(s.QS), s.QS.AllNodes().BuildIterator())
 	defer nodes.Close()
 
 	ictx, cancel := context.WithCancel(ctx)
@@ -293,7 +296,7 @@ func (s *GraphStreamHandler) serveNodesWithProps(ctx context.Context, gs *GraphS
 	itc := graph.Iterate(ictx, nodes).On(s.QS).Limit(limit)
 
 	qi := 0
-	_ = itc.EachValuePair(s.QS, func(v graph.Value, nv quad.Value) {
+	_ = itc.EachValuePair(s.QS, func(v values.Ref, nv quad.Value) {
 		if _, skip := ignore[nv]; skip {
 			return
 		}
@@ -306,7 +309,7 @@ func (s *GraphStreamHandler) serveNodesWithProps(ctx context.Context, gs *GraphS
 		)
 		quad.HashTo(nv, h[:])
 
-		predIt := s.QS.QuadIterator(quad.Subject, nodes.Result())
+		predIt := s.QS.QuadIterator(quad.Subject, nodes.Result()).BuildIterator()
 		defer predIt.Close()
 		for predIt.Next(ictx) {
 			// this check helps us ignore nodes with no links

@@ -21,7 +21,7 @@ import (
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/graph/proto"
 	"github.com/cayleygraph/cayley/graph/values"
-	"github.com/nwca/uda/kv"
+	"github.com/nwca/hidalgo/kv"
 )
 
 type QuadIterator struct {
@@ -180,7 +180,7 @@ func (it *QuadIterator) Contains(ctx context.Context, v values.Ref) bool {
 	return true
 }
 
-func (it *QuadIterator) SubIterators() []iterator.Iterator {
+func (it *QuadIterator) SubIterators() []iterator.Generic {
 	return nil
 }
 

@@ -173,17 +173,6 @@ func (s Null) Optimize(r Optimizer) (Shape, bool) {
 	return nil, true
 }
 
-// One checks if Shape represents a single fixed value and returns it.
-func One(s Shape) (values.Ref, bool) {
-	switch s := s.(type) {
-	case Fixed:
-		if len(s) == 1 {
-			return s[0], true
-		}
-	}
-	return nil, false
-}
-
 // Fixed is a static set of nodes. Defined only for a particular QuadStore.
 type Fixed []values.Ref
 

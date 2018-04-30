@@ -181,6 +181,9 @@ func iteratedValues(t testing.TB, qs graph.QuadStore, it iterator.Iterator) []qu
 
 func IteratedStrings(t testing.TB, qs graph.QuadStore, it iterator.Iterator) []string {
 	res := iteratedValues(t, qs, it)
+	if len(res) == 0 {
+		return nil
+	}
 	out := make([]string, 0, len(res))
 	for _, qv := range res {
 		out = append(out, quad.ToString(qv))
@@ -960,7 +963,7 @@ func TestCompareTypedValues(t testing.TB, gen testutil.DatabaseFunc, conf *Confi
 
 	for _, c := range casesCompare {
 		//t.Log(c.op, c.val)
-		it := gshape.CompareNodes(qs.AllNodes(), c.op, c.val).BuildIterator()
+		it := query.BuildIterator(qs, gshape.CompareNodes(qs.AllNodes(), c.op, c.val))
 		ExpectIteratedValues(t, qs, it, c.expect, true)
 	}
 

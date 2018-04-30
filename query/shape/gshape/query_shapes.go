@@ -27,6 +27,22 @@ type ValBindable interface {
 	BindTo(qs graph.QuadStore) shape.ValShape
 }
 
+// One checks if Shape represents a single fixed value and returns it.
+func One(s shape.Shape) (values.Ref, bool) {
+	switch s := s.(type) {
+	case shape.Fixed:
+		if len(s) == 1 {
+			return s[0], true
+		}
+	case toRefs:
+		if vs, ok := s.vals.(shape.Values); ok && len(vs) == 1 {
+			// TODO: batch
+			return s.qs.ValueOf(vs[0]), true
+		}
+	}
+	return nil, false
+}
+
 var _ Bindable = AllNodes{}
 
 // AllNodes represents all nodes in QuadStore.
@@ -133,7 +149,7 @@ type QuadFilter struct {
 func (s QuadFilter) buildShape(qs graph.QuadIndexer) shape.Shape {
 	if s.Values == nil {
 		return shape.Null{}
-	} else if v, ok := shape.One(s.Values); ok {
+	} else if v, ok := One(s.Values); ok {
 		return qs.QuadIterator(s.Dir, v)
 	}
 	if s.Dir == quad.Any {
@@ -326,7 +342,7 @@ func (s NodesFrom) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 		n int
 	)
 	for _, f := range q {
-		if v, ok := shape.One(f.Values); ok {
+		if v, ok := One(f.Values); ok {
 			if filt == nil {
 				filt = make(map[quad.Direction]values.Ref)
 			}

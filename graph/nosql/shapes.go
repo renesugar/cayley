@@ -204,7 +204,7 @@ func (qs *QuadStore) optimizeQuads(s gshape.Quads) (shape.Shape, bool) {
 		left  []gshape.QuadFilter
 	)
 	for _, f := range s {
-		if v, ok := shape.One(f.Values); ok {
+		if v, ok := gshape.One(f.Values); ok {
 			if h, ok := v.(NodeHash); ok {
 				links = append(links, Linkage{Dir: f.Dir, Val: h})
 				continue

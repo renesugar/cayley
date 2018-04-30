@@ -71,7 +71,11 @@ func (s Intersect) Optimize(r Optimizer) (sout Shape, opt bool) {
 		s[i] = v
 	}
 	if r != nil {
-		ns, nopt := r.OptimizeShape(s)
+		var ss Shape = s
+		if len(s) == 1 {
+			ss = s[0]
+		}
+		ns, nopt := r.OptimizeShape(ss)
 		return ns, opt || nopt
 	}
 	if arr, ft := clearFixedTags([]Shape(s)); ft != nil {

@@ -167,7 +167,7 @@ func TestLinksToOptimization(t *testing.T) {
 		{Dir: quad.Object, Values: gshape.Lookup{quad.Raw("cool")}},
 	})
 	if _, ok := lto.(*Iterator); !ok {
-		t.Fatal("Didn't swap out to LLRB")
+		t.Fatalf("Didn't swap out to LLRB: %T", lto)
 	}
 }
 

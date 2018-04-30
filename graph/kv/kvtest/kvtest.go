@@ -77,17 +77,14 @@ func testOptimize(t *testing.T, gen DatabaseFunc, _ *Config) {
 	testutil.MakeWriter(t, qs, opts, graphtest.MakeQuadSet()...)
 
 	// With an linksto-fixed pair
-	lto := query.BuildIterator(qs, gshape.Quads{
+	s, _ := query.Optimize(gshape.Quads{
 		{Dir: quad.Object, Values: gshape.Lookup{quad.Raw("F")}},
-	})
+	}, qs)
+	newIt := query.BuildIterator(qs, s)
 
 	oldIt := query.BuildIterator(qs, gshape.Quads{
 		{Dir: quad.Object, Values: gshape.Lookup{quad.Raw("F")}},
 	})
-	newIt, ok := lto.Optimize()
-	if ok {
-		t.Errorf("unexpected optimization step")
-	}
 	if _, ok := newIt.(*kv.QuadIterator); !ok {
 		t.Errorf("Optimized iterator type does not match original, got: %T", newIt)
 	}

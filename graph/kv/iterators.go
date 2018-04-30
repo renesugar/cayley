@@ -1,8 +1,6 @@
 package kv
 
 import (
-	"fmt"
-
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/graph/values"
 	"github.com/cayleygraph/cayley/quad"
@@ -10,32 +8,56 @@ import (
 )
 
 func (qs *QuadStore) AllNodes() shape.Shape {
-	return NewAllIterator(true, qs, nil)
+	return scanPrimitives{qs: qs, nodes: true}
 }
 
 func (qs *QuadStore) AllQuads() shape.Shape {
-	return NewAllIterator(false, qs, nil)
+	return scanPrimitives{qs: qs, nodes: false}
 }
 
-func (qs *QuadStore) QuadIterator(dir quad.Direction, v values.Ref) iterator.Iterator {
-	if v == nil {
-		return iterator.NewNull()
-	}
+type scanPrimitives struct {
+	qs    *QuadStore
+	nodes bool
+	c     *constraint
+}
+
+func (s scanPrimitives) BuildIterator() iterator.Iterator {
+	return NewAllIterator(s.nodes, s.qs, s.c)
+}
+
+func (s scanPrimitives) Optimize(r shape.Optimizer) (shape.Shape, bool) {
+	return s, false
+}
+
+type scanIndex struct {
+	qs   *QuadStore
+	ind  QuadIndex
+	pref []uint64
+}
+
+func (s scanIndex) BuildIterator() iterator.Iterator {
+	return NewQuadIterator(s.qs, s.ind, s.pref)
+}
+
+func (s scanIndex) Optimize(r shape.Optimizer) (shape.Shape, bool) {
+	return s, false
+}
+
+func (qs *QuadStore) QuadIterator(dir quad.Direction, v values.Ref) shape.Shape {
 	vi, ok := v.(Int64Value)
 	if !ok {
-		return iterator.NewError(fmt.Errorf("unexpected node type: %T", v))
+		return shape.Null{}
 	}
-
 	qs.indexes.RLock()
 	all := qs.indexes.all
 	qs.indexes.RUnlock()
 	for _, ind := range all {
 		if len(ind.Dirs) == 1 && ind.Dirs[0] == dir {
-			return NewQuadIterator(qs, ind, []uint64{uint64(vi)})
+			return scanIndex{qs: qs, ind: ind, pref: []uint64{uint64(vi)}}
 		}
 	}
-	return NewAllIterator(false, qs, &constraint{
+	return scanPrimitives{qs: qs, nodes: false, c: &constraint{
 		dir: dir,
 		val: vi,
-	})
+	}}
 }

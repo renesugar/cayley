@@ -28,6 +28,8 @@ import (
 	"github.com/cayleygraph/cayley/internal/lru"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/quad/pquads"
+	"github.com/cayleygraph/cayley/query/shape"
+	"github.com/cayleygraph/cayley/query/shape/gshape"
 	"github.com/nwca/hidalgo/kv"
 	boom "github.com/tylertreat/BoomFilters"
 )
@@ -153,10 +155,7 @@ func setVersion(ctx context.Context, db kv.KV, version int64) error {
 	return kv.Update(ctx, db, func(tx kv.Tx) error {
 		var buf [8]byte
 		binary.LittleEndian.PutUint64(buf[:], uint64(version))
-		if err := tx.Put(kv.Key{
-			metaBucket,
-			[]byte("version"),
-		}, buf[:]); err != nil {
+		if err := tx.Put(versKey, buf[:]); err != nil {
 			return fmt.Errorf("couldn't write version: %v", err)
 		}
 		return nil
@@ -165,11 +164,9 @@ func setVersion(ctx context.Context, db kv.KV, version int64) error {
 
 func (qs *QuadStore) getMetaInt(ctx context.Context, key string) (int64, error) {
 	var v int64
+	k := metaBucket.Append(kv.SKey(key))
 	err := kv.View(qs.db, func(tx kv.Tx) error {
-		val, err := tx.Get(ctx, kv.Key{
-			metaBucket,
-			[]byte(key),
-		})
+		val, err := tx.Get(ctx, k)
 		if err == kv.ErrNotFound {
 			return ErrNoBucket
 		} else if err != nil {
@@ -184,9 +181,9 @@ func (qs *QuadStore) getMetaInt(ctx context.Context, key string) (int64, error) 
 	return v, err
 }
 
-func (qs *QuadStore) Size() int64 {
+func (qs *QuadStore) Stats() graph.Stats {
 	sz, _ := qs.getMetaInt(context.TODO(), "size")
-	return sz
+	return graph.Stats{Links: sz}
 }
 
 func (qs *QuadStore) Close() error {
@@ -196,10 +193,7 @@ func (qs *QuadStore) Close() error {
 func (qs *QuadStore) getMetadata(ctx context.Context) (int64, error) {
 	var vers int64
 	err := kv.View(qs.db, func(tx kv.Tx) error {
-		val, err := tx.Get(ctx, kv.Key{
-			metaBucket,
-			[]byte("version"),
-		})
+		val, err := tx.Get(ctx, versKey)
 		if err == kv.ErrNotFound {
 			return ErrNoBucket
 		} else if err != nil {
@@ -377,3 +371,11 @@ func (qs *QuadStore) getPrimitives(ctx context.Context, vals []uint64) ([]*proto
 type Int64Value uint64
 
 func (v Int64Value) Key() interface{} { return v }
+
+func (qs *QuadStore) ToValue(s shape.Shape) shape.ValShape {
+	return gshape.ToValues(qs, s)
+}
+
+func (qs *QuadStore) ToRef(s shape.ValShape) shape.Shape {
+	return gshape.ToRefs(qs, s)
+}

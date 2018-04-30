@@ -171,7 +171,8 @@ func (it *AllIterator) Contains(ctx context.Context, v values.Ref) bool {
 }
 
 func (it *AllIterator) Size() (int64, bool) {
-	return it.qs.Size(), false
+	// TODO: fix this for nodes
+	return it.qs.Stats().Links, false
 }
 
 func (it *AllIterator) String() string {

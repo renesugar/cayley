@@ -210,7 +210,7 @@ func (it *QuadIterator) Size() (int64, bool) {
 		it.size = int64(len(ids))
 		return it.size, true
 	}
-	return 1 + it.qs.Size()/2, false
+	return 1 + it.qs.Stats().Links/2, false
 }
 
 func (it *QuadIterator) String() string {

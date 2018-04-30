@@ -215,7 +215,9 @@ func TestLoadOneQuad(t testing.TB, gen testutil.DatabaseFunc, c *Config) {
 	require.NoError(t, err)
 
 	ctx := context.TODO()
-	for _, pq := range []quad.String{"Something", "points_to", "Something Else", "context"} {
+
+	for _, d := range quad.Directions {
+		pq := q.Get(d)
 		tok, err := graph.RefOf(ctx, qs, pq)
 		require.NoError(t, err)
 		require.NotNil(t, tok, "quad store failed to find value: %q", pq)
@@ -232,6 +234,13 @@ func TestLoadOneQuad(t testing.TB, gen testutil.DatabaseFunc, c *Config) {
 	require.Equal(t, exp, qs.Stats().Links, "Unexpected quadstore size")
 
 	ExpectIteratedQuads(t, qs, qs.AllQuads().BuildIterator(), []quad.Quad{q}, false)
+
+	for _, d := range quad.Directions {
+		pq := q.Get(d)
+		tok, err := graph.RefOf(ctx, qs, pq)
+		require.NoError(t, err)
+		ExpectIteratedQuads(t, qs, qs.QuadIterator(d, tok).BuildIterator(), []quad.Quad{q}, false)
+	}
 }
 
 func TestWriters(t *testing.T, gen testutil.DatabaseFunc, c *Config) {

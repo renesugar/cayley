@@ -35,8 +35,10 @@ import (
 )
 
 var (
-	metaBucket = kv.Key{[]byte("meta")}
-	logIndex   = kv.Key{[]byte("log")}
+	metaBucket = kv.SKey("meta")
+	logIndex   = kv.SKey("log")
+
+	versKey = metaBucket.Append(kv.SKey("version"))
 
 	// List of all buckets in the current version of the database.
 	buckets = []kv.Key{
@@ -65,7 +67,7 @@ func (ind QuadIndex) Key(vals []uint64) kv.Key {
 		n += 8
 	}
 	// TODO: split into parts?
-	return kv.Key{key}
+	return ind.bucket().AppendBytes(key)
 }
 func (ind QuadIndex) KeyFor(p *proto.Primitive) kv.Key {
 	key := make([]byte, 8*len(ind.Dirs))
@@ -78,19 +80,21 @@ func (ind QuadIndex) KeyFor(p *proto.Primitive) kv.Key {
 	return ind.bucket().AppendBytes(key)
 }
 func (ind QuadIndex) bucket() kv.Key {
-	b := make([]byte, len(ind.Dirs))
+	buf := make([]byte, len(ind.Dirs))
 	for i, d := range ind.Dirs {
-		b[i] = d.Prefix()
+		buf[i] = d.Prefix()
 	}
-	return kv.Key{b}
+	key := make(kv.Key, 1, 2)
+	key[0] = buf
+	return key
 }
 
 func bucketForVal(i, j byte) kv.Key {
-	return kv.Key{[]byte{'v', i, j}}
+	return kv.Key{[]byte{'v'}, []byte{i, j}}
 }
 
 func bucketForValRefs(i, j byte) kv.Key {
-	return kv.Key{[]byte{'n', i, j}}
+	return kv.Key{[]byte{'n'}, []byte{i, j}}
 }
 
 func (qs *QuadStore) createBuckets(ctx context.Context, upfront bool) error {

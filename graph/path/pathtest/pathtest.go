@@ -46,7 +46,7 @@ import (
 //        \-->| #dani# |------------>+--------+
 //            +--------+
 
-func makeTestStore(t testing.TB, fnc testutil.DatabaseFunc, quads ...quad.Quad) (graph.QuadStore, func()) {
+func makeTestStore(t testing.TB, fnc *testutil.Database, quads ...quad.Quad) (graph.QuadStore, func()) {
 	if len(quads) == 0 {
 		quads = testutil.LoadGraph(t, "data/testdata.nq")
 	}
@@ -56,7 +56,7 @@ func makeTestStore(t testing.TB, fnc testutil.DatabaseFunc, quads ...quad.Quad) 
 		closer = func() {}
 	)
 	if fnc != nil {
-		qs, opts, closer = fnc(t)
+		qs, opts, closer = fnc.Run(t)
 	} else {
 		qs, _ = graph.NewQuadStore("memstore", "", nil)
 	}
@@ -412,8 +412,8 @@ var testSet = []struct {
 	},
 }
 
-func RunTestMorphisms(t *testing.T, fnc testutil.DatabaseFunc) {
-	for _, ftest := range []func(*testing.T, testutil.DatabaseFunc){
+func RunTestMorphisms(t *testing.T, fnc *testutil.Database) {
+	for _, ftest := range []func(*testing.T, *testutil.Database){
 		testFollowRecursive,
 	} {
 		ftest(t, fnc)
@@ -467,7 +467,7 @@ func RunTestMorphisms(t *testing.T, fnc testutil.DatabaseFunc) {
 	}
 }
 
-func testFollowRecursive(t *testing.T, fnc testutil.DatabaseFunc) {
+func testFollowRecursive(t *testing.T, fnc *testutil.Database) {
 	qs, closer := makeTestStore(t, fnc, []quad.Quad{
 		quad.MakeIRI("a", "parent", "b", ""),
 		quad.MakeIRI("b", "parent", "c", ""),

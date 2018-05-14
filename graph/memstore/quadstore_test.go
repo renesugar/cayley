@@ -22,6 +22,7 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/graphtest"
+	"github.com/cayleygraph/cayley/graph/graphtest/testutil"
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/graph/iterator/giterator"
 	"github.com/cayleygraph/cayley/quad"
@@ -84,10 +85,13 @@ func makeTestStore(data []quad.Quad) (*QuadStore, graph.QuadWriter, []pair) {
 }
 
 func TestMemstore(t *testing.T) {
-	graphtest.TestAll(t, func(t testing.TB) (graph.QuadStore, graph.Options, func()) {
-		return New(), nil, func() {}
-	}, &graphtest.Config{
-		AlwaysRunIntegration: true,
+	graphtest.TestAll(t, testutil.Database{
+		Config: graphtest.Config{
+			AlwaysRunIntegration: true,
+		},
+		Run: func(t testing.TB) (graph.QuadStore, graph.Options, func()) {
+			return New(), nil, func() {}
+		},
 	})
 }
 

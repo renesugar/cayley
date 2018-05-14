@@ -1,15 +1,14 @@
 package nosql
 
 import (
-	"fmt"
 	"math"
 	"strconv"
 
-	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/iterator"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/query/shape"
 	"github.com/cayleygraph/cayley/query/shape/gshape"
+	"github.com/nwca/hidalgo/legacy/nosql"
 )
 
 var _ shape.Optimizer = (*QuadStore)(nil)
@@ -18,8 +17,6 @@ func (qs *QuadStore) OptimizeShape(s shape.Shape) (shape.Shape, bool) {
 	switch s := s.(type) {
 	case gshape.Quads:
 		return qs.optimizeQuads(s)
-	case shape.Filter:
-		return qs.optimizeFilter(s)
 	case shape.Page:
 		return qs.optimizePage(s)
 	case shape.Composite:
@@ -30,19 +27,24 @@ func (qs *QuadStore) OptimizeShape(s shape.Shape) (shape.Shape, bool) {
 	return s, false
 }
 
-// Shape is a shape representing a documents query with filters
-type Shape struct {
-	Collection string        // name of the collection
-	Filters    []FieldFilter // filters to select documents
-	Limit      int64         // limits a number of documents
+func (qs *QuadStore) OptimizeValShape(s shape.ValShape) (shape.ValShape, bool) {
+	switch s := s.(type) {
+	case shape.Filter:
+		return qs.optimizeFilter(s)
+	}
+	return s, false
 }
 
-func (s Shape) BuildIterator(qs graph.QuadStore) iterator.Iterator {
-	db, ok := qs.(*QuadStore)
-	if !ok {
-		return iterator.NewError(fmt.Errorf("not a nosql database: %T", qs))
-	}
-	return NewIterator(db, s.Collection, s.Filters...)
+// Shape is a shape representing a documents query with filters
+type Shape struct {
+	qs         *QuadStore
+	Collection string              // name of the collection
+	Filters    []nosql.FieldFilter // filters to select documents
+	Limit      int64               // limits a number of documents
+}
+
+func (s Shape) BuildIterator() iterator.Iterator {
+	return NewIterator(s.qs, s.Collection, s.Filters...)
 }
 
 func (s Shape) Optimize(r shape.Optimizer) (shape.Shape, bool) {
@@ -51,16 +53,13 @@ func (s Shape) Optimize(r shape.Optimizer) (shape.Shape, bool) {
 
 // Quads is a shape representing a quads query
 type Quads struct {
+	qs    *QuadStore
 	Links []Linkage // filters to select quads
 	Limit int64     // limits a number of documents
 }
 
-func (s Quads) BuildIterator(qs graph.QuadStore) iterator.Iterator {
-	db, ok := qs.(*QuadStore)
-	if !ok {
-		return iterator.NewError(fmt.Errorf("not a nosql database: %T", qs))
-	}
-	return NewLinksToIterator(db, colQuads, s.Links)
+func (s Quads) BuildIterator() iterator.Iterator {
+	return NewLinksToIterator(s.qs, colQuads, s.Links)
 }
 
 func (s Quads) Optimize(r shape.Optimizer) (shape.Shape, bool) {
@@ -86,21 +85,21 @@ func stoi(s string) int64 {
 	return int64(ret - int64Adjust)
 }
 
-func (opt Options) toFieldFilter(c shape.Comparison) ([]FieldFilter, bool) {
-	var op FilterOp
+func toFieldFilter(opt *Traits, c shape.Comparison) ([]nosql.FieldFilter, bool) {
+	var op nosql.FilterOp
 	switch c.Op {
 	case shape.CompareEQ:
-		op = Equal
+		op = nosql.Equal
 	case shape.CompareNEQ:
-		op = NotEqual
+		op = nosql.NotEqual
 	case shape.CompareGT:
-		op = GT
+		op = nosql.GT
 	case shape.CompareGTE:
-		op = GTE
+		op = nosql.GTE
 	case shape.CompareLT:
-		op = LT
+		op = nosql.LT
 	case shape.CompareLTE:
-		op = LTE
+		op = nosql.LTE
 	default:
 		return nil, false
 	}
@@ -108,42 +107,42 @@ func (opt Options) toFieldFilter(c shape.Comparison) ([]FieldFilter, bool) {
 		return []string{fldValue, s}
 	}
 
-	var filters []FieldFilter
+	var filters []nosql.FieldFilter
 	switch v := c.Val.(type) {
 	case quad.String:
-		filters = []FieldFilter{
-			{Path: fieldPath(fldValData), Filter: op, Value: String(v)},
-			{Path: fieldPath(fldIRI), Filter: NotEqual, Value: Bool(true)},
-			{Path: fieldPath(fldBNode), Filter: NotEqual, Value: Bool(true)},
+		filters = []nosql.FieldFilter{
+			{Path: fieldPath(fldValData), Filter: op, Value: nosql.String(v)},
+			{Path: fieldPath(fldIRI), Filter: nosql.NotEqual, Value: nosql.Bool(true)},
+			{Path: fieldPath(fldBNode), Filter: nosql.NotEqual, Value: nosql.Bool(true)},
 		}
 	case quad.IRI:
-		filters = []FieldFilter{
-			{Path: fieldPath(fldValData), Filter: op, Value: String(v)},
-			{Path: fieldPath(fldIRI), Filter: Equal, Value: Bool(true)},
+		filters = []nosql.FieldFilter{
+			{Path: fieldPath(fldValData), Filter: op, Value: nosql.String(v)},
+			{Path: fieldPath(fldIRI), Filter: nosql.Equal, Value: nosql.Bool(true)},
 		}
 	case quad.BNode:
-		filters = []FieldFilter{
-			{Path: fieldPath(fldValData), Filter: op, Value: String(v)},
-			{Path: fieldPath(fldBNode), Filter: Equal, Value: Bool(true)},
+		filters = []nosql.FieldFilter{
+			{Path: fieldPath(fldValData), Filter: op, Value: nosql.String(v)},
+			{Path: fieldPath(fldBNode), Filter: nosql.Equal, Value: nosql.Bool(true)},
 		}
 	case quad.Int:
 		if opt.Number32 && (v < math.MinInt32 || v > math.MaxInt32) {
 			// switch to range on string values
-			filters = []FieldFilter{
-				{Path: fieldPath(fldValStrInt), Filter: op, Value: String(itos(int64(v)))},
+			filters = []nosql.FieldFilter{
+				{Path: fieldPath(fldValStrInt), Filter: op, Value: nosql.String(itos(int64(v)))},
 			}
 		} else {
-			filters = []FieldFilter{
-				{Path: fieldPath(fldValInt), Filter: op, Value: Int(v)},
+			filters = []nosql.FieldFilter{
+				{Path: fieldPath(fldValInt), Filter: op, Value: nosql.Int(v)},
 			}
 		}
 	case quad.Float:
-		filters = []FieldFilter{
-			{Path: fieldPath(fldValFloat), Filter: op, Value: Float(v)},
+		filters = []nosql.FieldFilter{
+			{Path: fieldPath(fldValFloat), Filter: op, Value: nosql.Float(v)},
 		}
 	case quad.Time:
-		filters = []FieldFilter{
-			{Path: fieldPath(fldValTime), Filter: op, Value: Time(v)},
+		filters = []nosql.FieldFilter{
+			{Path: fieldPath(fldValTime), Filter: op, Value: nosql.Time(v)},
 		}
 	default:
 		return nil, false
@@ -151,12 +150,17 @@ func (opt Options) toFieldFilter(c shape.Comparison) ([]FieldFilter, bool) {
 	return filters, true
 }
 
-func (qs *QuadStore) optimizeFilter(s shape.Filter) (shape.Shape, bool) {
-	if _, ok := s.From.(gshape.AllNodes); !ok {
+func (qs *QuadStore) optimizeFilter(s shape.Filter) (shape.ValShape, bool) {
+	if rs, ok := s.From.(gshape.RefsToValues); !ok {
+		return s, false
+	} else if _, ok := rs.Refs.(gshape.AllNodes); !ok {
 		return s, false
 	}
+	return s, false // TODO: optimize
+}
+func (qs *QuadStore) optimizeRefFilter(s shape.Filter) (shape.Shape, bool) {
 	var (
-		filters []FieldFilter
+		filters []nosql.FieldFilter
 		left    []shape.ValueFilter
 	)
 	fieldPath := func(s string) []string {
@@ -165,37 +169,38 @@ func (qs *QuadStore) optimizeFilter(s shape.Filter) (shape.Shape, bool) {
 	for _, f := range s.Filters {
 		switch f := f.(type) {
 		case shape.Comparison:
-			if fld, ok := qs.opt.toFieldFilter(f); ok {
+			if fld, ok := toFieldFilter(&qs.opt, f); ok {
 				filters = append(filters, fld...)
 				continue
 			}
 		case shape.Wildcard:
-			filters = append(filters, []FieldFilter{
-				{Path: fieldPath(fldValData), Filter: Regexp, Value: String(f.Regexp())},
+			filters = append(filters, []nosql.FieldFilter{
+				{Path: fieldPath(fldValData), Filter: nosql.Regexp, Value: nosql.String(f.Regexp())},
 			}...)
 			continue
 		case shape.Regexp:
-			filters = append(filters, []FieldFilter{
-				{Path: fieldPath(fldValData), Filter: Regexp, Value: String(f.Re.String())},
+			filters = append(filters, []nosql.FieldFilter{
+				{Path: fieldPath(fldValData), Filter: nosql.Regexp, Value: nosql.String(f.Re.String())},
 			}...)
 			if !f.Refs {
-				filters = append(filters, []FieldFilter{
-					{Path: fieldPath(fldIRI), Filter: NotEqual, Value: Bool(true)},
-					{Path: fieldPath(fldBNode), Filter: NotEqual, Value: Bool(true)},
+				filters = append(filters, []nosql.FieldFilter{
+					{Path: fieldPath(fldIRI), Filter: nosql.NotEqual, Value: nosql.Bool(true)},
+					{Path: fieldPath(fldBNode), Filter: nosql.NotEqual, Value: nosql.Bool(true)},
 				}...)
 			}
 			continue
 		}
 		left = append(left, f)
 	}
-	if len(filters) == 0 {
-		return s, false
-	}
-	var ns shape.Shape = Shape{Collection: colNodes, Filters: filters}
-	if len(left) != 0 {
-		ns = shape.Filter{From: ns, Filters: left}
-	}
-	return ns, true
+	panic("TODO") // FIXME: this should be done for RefsOf(Filter(Values))
+	//if len(filters) == 0 {
+	//	return s, false
+	//}
+	//var ns shape.Shape = Shape{Collection: colNodes, Filters: filters}
+	//if len(left) != 0 {
+	//	ns = shape.Filter{From: ns, Filters: left}
+	//}
+	//return ns, true
 }
 
 func (qs *QuadStore) optimizeQuads(s gshape.Quads) (shape.Shape, bool) {

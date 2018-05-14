@@ -23,16 +23,15 @@ type Config struct {
 	AlwaysRunIntegration bool
 }
 
-func (c Config) quadStore() *graphtest.Config {
-	return &graphtest.Config{
-		NoPrimitives:         true,
-		AlwaysRunIntegration: c.AlwaysRunIntegration,
-	}
-}
-
-func NewQuadStoreFunc(gen DatabaseFunc) testutil.DatabaseFunc {
-	return func(t testing.TB) (graph.QuadStore, graph.Options, func()) {
-		return NewQuadStore(t, gen)
+func NewQuadStoreFunc(gen DatabaseFunc, c Config) testutil.Database {
+	return testutil.Database{
+		Config: graphtest.Config{
+			NoPrimitives:         true,
+			AlwaysRunIntegration: c.AlwaysRunIntegration,
+		},
+		Run: func(t testing.TB) (graph.QuadStore, graph.Options, func()) {
+			return NewQuadStore(t, gen)
+		},
 	}
 }
 
@@ -60,9 +59,9 @@ func TestAll(t *testing.T, gen DatabaseFunc, conf *Config) {
 	if conf == nil {
 		conf = &Config{}
 	}
-	qsgen := NewQuadStoreFunc(gen)
+	qsgen := NewQuadStoreFunc(gen, *conf)
 	t.Run("qs", func(t *testing.T) {
-		graphtest.TestAll(t, qsgen, conf.quadStore())
+		graphtest.TestAll(t, qsgen)
 	})
 	t.Run("optimize", func(t *testing.T) {
 		testOptimize(t, gen, conf)
@@ -110,8 +109,8 @@ func BenchmarkAll(t *testing.B, gen DatabaseFunc, conf *Config) {
 	if conf == nil {
 		conf = &Config{}
 	}
-	qsgen := NewQuadStoreFunc(gen)
+	qsgen := NewQuadStoreFunc(gen, *conf)
 	t.Run("qs", func(t *testing.B) {
-		graphtest.BenchmarkAll(t, qsgen, conf.quadStore())
+		graphtest.BenchmarkAll(t, qsgen)
 	})
 }

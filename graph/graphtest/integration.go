@@ -56,15 +56,15 @@ func checkIntegration(t testing.TB, force bool) {
 	}
 }
 
-func TestIntegration(t *testing.T, gen testutil.DatabaseFunc, force bool) {
-	checkIntegration(t, force)
+func TestIntegration(t *testing.T, gen testutil.Database) {
+	checkIntegration(t, gen.Config.AlwaysRunIntegration)
 	h, closer := prepare(t, gen)
 	defer closer()
 
 	checkQueries(t, h, timeout)
 }
 
-func BenchmarkIntegration(t *testing.B, gen testutil.DatabaseFunc, force bool) {
+func BenchmarkIntegration(t *testing.B, gen testutil.Database, force bool) {
 	checkIntegration(t, force)
 	benchmarkQueries(t, gen)
 }
@@ -460,10 +460,10 @@ var m1_actors = movie1.Save("<name>","movie1").Follow(filmToActor)
 var m2_actors = movie2.Save("<name>","movie2").Follow(filmToActor)
 `
 
-func prepare(t testing.TB, gen testutil.DatabaseFunc) (*graph.Handle, func()) {
-	qs, _, closer := gen(t)
+func prepare(t testing.TB, gen testutil.Database) (*graph.Handle, func()) {
+	qs, opt, closer := gen.Run(t)
 
-	qw, err := graph.NewQuadWriter("single", qs, nil)
+	qw, err := graph.NewQuadWriter("single", qs, opt)
 	if err != nil {
 		closer()
 		require.NoError(t, err)
@@ -569,7 +569,7 @@ func convertToStringList(in []interface{}) []string {
 	return out
 }
 
-func benchmarkQueries(b *testing.B, gen testutil.DatabaseFunc) {
+func benchmarkQueries(b *testing.B, gen testutil.Database) {
 	h, closer := prepare(b, gen)
 	defer closer()
 

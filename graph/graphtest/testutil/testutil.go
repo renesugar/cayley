@@ -12,7 +12,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type DatabaseFunc func(t testing.TB) (graph.QuadStore, graph.Options, func())
+type Config struct {
+	NoPrimitives bool
+	UnTyped      bool // converts all values to Raw representation
+	TimeInMs     bool
+	TimeInMcs    bool
+	TimeRound    bool
+	PageSize     int // result page size for pagination (large iterator) tests
+
+	OptimizesComparison bool
+
+	AlwaysRunIntegration bool // always run integration tests
+
+	SkipDeletedFromIterator  bool
+	SkipSizeCheckAfterDelete bool
+}
+
+type Database struct {
+	Config Config
+	Run    func(t testing.TB) (graph.QuadStore, graph.Options, func())
+}
 
 func LoadGraph(t testing.TB, path string) []quad.Quad {
 	var (
